@@ -1,0 +1,102 @@
+# FastLogin 本地化
+# 项目网站：https://www.spigotmc.org/resources/fastlogin.14153
+# 源代码：https://github.com/games647/FastLogin
+#
+# 您可以在这里获取最新的语言文件：
+# https://github.com/games647/FastLogin/blob/main/core/src/main/resources/messages.yml
+#
+# 您想要语言模板吗？请访问 GitHub Wiki：
+# https://github.com/games647/FastLogin/wiki/English
+
+# 要将消息拆分为多行，只需换行，但保留 '
+# 示例：
+# bla: '&a第一行
+# 第二行
+# 第三行'
+
+# 如果要禁用消息，可以将其设置为空值。
+# 在这种情况下，不会发送任何消息
+# 示例：
+# bla: ''
+
+# ========= 共享（BungeeCord 和 Bukkit）   ============
+
+# 启用了切换模式，新的盗版玩家尝试加入，但未被明确允许
+switch-kick-message: '&4只有 付费 Minecraft 账号允许加入此服务器'
+
+# 游戏资料已激活高级登录以跳过离线认证
+add-premium: '&2已添加到 高级玩家 列表'
+
+# 游戏资料已激活高级登录以跳过离线认证
+add-premium-other: '&2玩家已添加到 高级 列表'
+
+# 游戏资料已被设置为付费账户
+already-exists: '&4您已经在 高级 列表中'
+
+# 游戏资料已被设置为付费账户
+already-exists-other: '&4玩家已经在 高级 列表中'
+
+# 游戏资料已被更改为盗版
+remove-premium: '&2已从 高级玩家 列表中移除'
+
+# 游戏资料已被设置为盗版
+not-premium: '&4您不在 高级 列表中'
+
+# 游戏资料已被设置为盗版
+not-premium-other: '&4玩家不在 高级 列表中'
+
+# 管理员试图更改插件中未知用户的高级状态
+player-unknown: '&4玩家不在数据库中'
+
+# 玩家因反机器人功能被踢出
+kick-antibot: '&4请稍等片刻！'
+
+# ========= Bukkit/Spigot ================
+
+# 用户因是高级玩家而跳过了认证
+auto-login: '&2自动登录成功'
+
+# FastLogin 尝试自动注册用户。用户账户被注册以防止盗版玩家
+# 如果 FastLogin 尊重认证插件的 IP 限制 - 注册可能失败，但消息仍会显示
+# 如果 Mojang 服务器宕机，您仍希望高级用户登录（计划中），可以使用密码
+auto-register: '&2尝试使用密码自动注册：&7%password&2。您可能需要更改它？'
+
+# 游戏资料无法切换其他玩家的高级状态
+no-permission: '&4权限不足'
+
+# 尽管控制台可以切换高级状态，但控制台本身无法执行此操作。
+# 因为控制台不是用户。（显然，不是吗？）
+no-console: '&4您不是玩家。您不能作为控制台切换自己的高级状态'
+
+# 用户想要切换高级状态，但启用了 BungeeCord 支持。这意味着服务器需要先与 BungeeCord 通信，
+# 然后才能与数据库服务器建立连接。
+wait-on-proxy: '&6正在发送请求……（别忘了按照插件页面中引用的 BungeeCord 设置指南进行操作）'
+
+# 当启用 ProtocolLib 时，插件在请求高级认证后无法继续处理登录请求。
+# 在这种状态下，客户端期望一个带有加密连接的成功数据包或断开连接的数据包。
+# 因此，如果无法加密连接，我们会将玩家踢出。在其他情况下（例如：高级名称检查），
+# 玩家将被认证为盗版
+error-kick: '&4发生错误'
+
+# 服务器在高级认证请求中发送了一个验证令牌。如果响应中不匹配，
+# 可能是另一个客户端发送了恶意数据包
+invalid-verify-token: '&4无效的验证令牌。请确认您使用了正确的服务器地址'
+
+# 客户端未向 Mojang 服务器发送加入服务器请求，这将证明其是该账户的所有者。
+# 只有修改过的客户端会这样做。
+invalid-session: '&4无效的会话'
+
+# 客户端发送了一个恶意数据包，而没有登录请求数据包
+invalid-request: '&4无效的请求'
+
+# 如果 Bukkit 尚未完全启动以注入数据包，将显示此消息
+not-started: '&c服务器尚未完全启动。请重试'
+
+# 如果用户调用了 /premium 命令，将显示警告消息
+premium-warning: '&c&l警告：&6此命令应&l仅&6在您是此付费 Minecraft 账户的所有者时调用
+再次输入 &a/premium&6 以确认'
+
+# 无效的客户端公钥，将来用于从客户端发送经过认证的聊天消息
+invalid-public-key: '&c无效的客户端公钥。请尝试重新启动游戏。'
+
+# ========= 仅限 Bungee/Waterfall ================================

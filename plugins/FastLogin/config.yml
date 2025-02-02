@@ -1,0 +1,179 @@
+# FastLogin 配置文件
+# 项目主页: https://www.spigotmc.org/resources/fastlogin.14153
+# 源码地址: https://github.com/games647/FastLogin
+#
+# 最新配置文件可在此获取:
+# https://github.com/games647/FastLogin/blob/main/core/src/main/resources/config.yml
+
+# 此为简易反机器人保护机制。建议使用专业解决方案应对此问题，
+# 底层级防火墙（如 uwf 或直接操作 iptables）比 Minecraft 插件更高效，
+# TCP 反向代理亦可分担负载至不同主机。
+#
+# 此配置将限制插件处理的连接数，达到上限后 FastLogin 将完全停止处理新连接，
+# 此时自动登录功能将不可用。
+anti-bot:
+  enabled: true
+  # 连接数限制采用漏桶算法机制：
+  # connections 表示允许的最大连接总数
+  # expire 表示单个连接过期时间（分钟）
+  connections: 600
+  expire: 10
+  # 应对策略 - 当连接池满时执行的操作
+  # 可选值: 'ignore'（忽略玩家处理）或 'block'（阻止连接）
+  action: 'ignore'
+
+# 自动请求正版验证而无需玩家输入指令
+#
+# 启用 autoRegister 后，插件将在登录时执行以下检查：
+# 1. 确保不存在同名破解版账户
+# -> 防止正版账户盗用已有破解版账户
+# - （已注册玩家仍可通过 /premium 指令激活正版验证）
+# 2. 自动生成高强度随机密码注册账户
+# -> 防止破解版玩家冒用正版账户名注册
+#
+# 正版验证基于玩家名进行，若破解版玩家使用正版账户名连接，
+# 将被强制断开并显示 'bad login' 或 'invalid session' 信息
+# 该提示信息无法修改
+# 更多信息: https://github.com/games647/FastLogin#why-do-players-have-to-invoke-a-command
+autoRegister: false
+
+# 是否遵循注册IP限制（如 AuthMe 的配置）
+# 由于多数认证插件采用异步处理，FastLogin 可能仍认为玩家已注册
+# 最佳配合需同时启用 auto-register-unknown
+#
+# true 表示即使超出限制仍尝试注册，实际处理由认证插件决定
+# https://github.com/games647/FastLogin/issues/458
+respectIpLimit: false
+
+# 当非正版玩家使用正版账户名首次登录失败后，
+# 再次连接时将允许其以破解版身份加入
+secondAttemptCracked: false
+
+# 新破解版玩家将被踢出服务器，适用于从离线模式切换至正版模式时保留原有玩家
+#
+# 已有破解版/正版玩家仍可加入，可通过将玩家名加入许可名单允许新破解版玩家加入
+switchMode: false
+
+# 检测到正版玩家时同步其官方 UUID
+#
+# 警告：这将导致正版与破解版连接的 UUID 不同，
+# 可能引发插件兼容性问题（如封禁系统基于离线 UUID 时可能失效）
+#
+# 示例：当服务器处于离线模式时封禁玩家是基于离线 UUID，
+# 而正版玩家使用在线 UUID 仍可加入
+#
+# 此功能需要 Cauldron、Spigot 或其分支版本（如 Paper）
+premiumUuid: false
+
+# 对未知玩家名向 Mojang 服务器发起额外验证以获取正版 UUID
+# 若数据库中已存在该正版 UUID 记录，则判定为玩家更名并同步更新数据库
+#
+# 使用场景示例：
+# #### 情景 1
+# autoRegister = false
+# nameChangeCheck = false
+# -> 玩家以破解版身份登录直至使用 /premium 指令覆盖记录
+#
+# #### 情景 2
+# autoRegister = false
+# nameChangeCheck = true
+# -> 通过 Mojang API 验证 UUID 是否存在于数据库
+#存在则判定为正版玩家更名，否则视为新破解版玩家
+#
+# 局限：若正版玩家更名后，破解版玩家使用其旧名将无法加入
+#
+# #### 情景 3
+# autoRegister = true
+# nameChangeCheck = false
+# -> 对未知正版账户名实施强制性正版验证
+#
+# #### 情景 4
+# autoRegister = true
+# nameChangeCheck = true
+# -> 结合正版验证自动更新数据库记录
+nameChangeCheck: false
+
+# 为通过正版验证的玩家同步其官方皮肤数据
+# 注意：
+# * 仅对正版认证连接有效
+# * PaperSpigot 强制启用此功能以保证正版更名功能正常
+# 破解版玩家需通过其他插件（如 ChangeSkin）实现皮肤功能
+forwardSkin: true
+
+# 显示正版指令使用警告提示
+premium-warning: true
+
+# ======[[ 仅限 Spigot+ProtocolLib 用户 ]]======
+# 启用不发送服务器 IP 至 Mojang 的会话解析方案
+# 适用于透明反向代理或 DNAT 网络环境
+# 此设置与 server.properties 的 prevent-proxy 配置原理相似
+# 
+# !!! [警告] !!!
+# 此为实验性功能，不同网络环境下效果可能存在差异
+useProxyAgnosticResolver: true
+
+# Mojang API 请求频率限制（默认 600 次/10 分钟）
+# 大型服务器可配置多个 IP 轮询以突破限制
+ip-addresses: []
+
+# 限制 FastLogin 的 Mojang API 请求量
+# 其他插件请求量不受此限制
+mojang-request-limit: 600
+
+# 自动注册存在于 FastLogin 数据库但未在认证插件注册的玩家
+# 适用于更换认证插件或清空认证数据库的情况
+auto-register-unknown: false
+
+# 是否启用自动登录功能
+# 禁用后需双重验证（同时需要 Minecraft 账户凭据和认证插件密码）
+autoLogin: true
+
+# Floodgate 配置
+# !!!!!!!! 警告：存在账号安全风险 !!!!!!!!
+
+# Floodgate 玩家自动登录策略
+# 可选值: false（禁用）/ true（启用）/ linked（仅已关联账户）/ no-conflict（无命名冲突时）
+autoLoginFloodgate: false
+
+# 是否允许 Floodgate/Geyser 玩家使用正版 Java 账户名
+# 可选值: false（拒绝）/ true（允许）/ linked（允许已关联账户）
+allowFloodgateNameConflict: false
+
+# Floodgate 玩家自动注册策略
+# 需 autoRegister 启用
+autoRegisterFloodgate: false
+
+# 验证客户端密钥签名（1.19+ 协议库模式专用）
+# 影响聊天消息签名验证功能
+verifyClientKeys: false
+
+# 数据库配置
+# 推荐使用 MariaDB（MySQL 增强版）
+
+# SQLite 单文件数据库
+driver: 'sqlite'
+database: '{pluginDir}/FastLogin.db'
+
+# MySQL/MariaDB 配置示例（需取消注释）
+#driver: 'mysql'
+#host: '127.0.0.1'
+#port: 3306
+#database: 'fastlogin'
+#username: 'myUser'
+#password: 'myPassword'
+
+# 高级连接池设置（单位：秒）
+#timeout: 30
+#lifetime: 30
+
+## 推荐启用 SSL 加密（数据库与服务器分离时）
+#useSSL: false
+#sslMode=Required
+#allowPublicKeyRetrieval=false
+#ServerRSAPublicKeyFile=
+
+# 用于规避 Mojang API 速率限制的 HTTP 代理列表
+proxies:
+  # 格式: 'IP:端口' 或 '域名:端口'
+  # - 'xyz.com:1337'
+  # - 'test.com:5131'

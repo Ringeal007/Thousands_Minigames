@@ -1,0 +1,568 @@
+DataSource:
+    # 你想使用什么类型的数据库？
+    # 有效值： SQLITE, MARIADB, MYSQL, POSTGRESQL
+    backend: SQLITE
+    # 启用数据库缓存系统，应在 BungeeCord 环境中禁用
+    # 或者当使用网站集成时。
+    caching: true
+    # 数据库主机地址
+    mySQLHost: 127.0.0.1
+    # 数据库端口
+    mySQLPort: '3306'
+    # 通过 SSL 连接到 MySQL 数据库
+    mySQLUseSSL: true
+    # 服务器证书的验证。
+    # 我们不推荐将此选项设置为 false。
+    # 请自行承担风险，仅在你知道自己在做什么的情况下将此选项设置为 false
+    mySQLCheckServerCertificate: true
+    # 授权客户端获取 RSA 服务器公钥。
+    # 高级选项，如果你不知道它的含义请忽略。
+    mySQLAllowPublicKeyRetrieval: true
+    # 连接到 MySQL 数据库的用户名
+    mySQLUsername: authme
+    # 连接到 MySQL 数据库的密码
+    mySQLPassword: '12345'
+    # 数据库名称，使用转换器或作为 SQLITE 数据库名称
+    mySQLDatabase: authme
+    # 数据库中的表
+    mySQLTablename: authme
+    # 用于排序数据的 ID 列
+    mySQLColumnId: id
+    # 用于存储或检查玩家昵称的列
+    mySQLColumnName: username
+    # 用于存储玩家真实姓名的列
+    mySQLRealName: realname
+    # 用于存储玩家密码的列
+    mySQLColumnPassword: password
+    # 用于存储玩家密码盐的列
+    mySQLColumnSalt: ''
+    # 用于存储玩家电子邮件的列
+    mySQLColumnEmail: email
+    # 用于存储玩家是否已登录的列
+    mySQLColumnLogged: isLogged
+    # 用于存储玩家是否有有效会话的列
+    mySQLColumnHasSession: hasSession
+    # 用于存储玩家的 TOTP 密钥（用于双因素认证）
+    mySQLtotpKey: totp
+    # 用于存储玩家最后 IP 的列
+    mySQLColumnIp: ip
+    # 用于存储玩家最后登录时间的列
+    mySQLColumnLastLogin: lastlogin
+    # 用于存储注册日期的列
+    mySQLColumnRegisterDate: regdate
+    # 用于存储注册时的 IP 地址的列
+    mySQLColumnRegisterIp: regip
+    # 用于存储玩家最后位置 - X 坐标
+    mySQLlastlocX: x
+    # 用于存储玩家最后位置 - Y 坐标
+    mySQLlastlocY: y
+    # 用于存储玩家最后位置 - Z 坐标
+    mySQLlastlocZ: z
+    # 用于存储玩家最后位置 - 世界名称
+    mySQLlastlocWorld: world
+    # 用于存储玩家最后位置 - Yaw 值
+    mySQLlastlocYaw: yaw
+    # 用于存储玩家最后位置 - Pitch 值
+    mySQLlastlocPitch: pitch
+    # 用于存储玩家 UUID 的列（可选）
+    mySQLPlayerUUID: ''
+    # 覆盖数据库连接池的大小，默认值为 10
+    poolSize: 10
+    # 连接池中连接的最大生命周期，默认值为 1800 秒
+    # 你应该将此设置至少比 MySQL 服务器的 wait_timeout 少 30 秒
+    maxLifetime: 1800
+ExternalBoardOptions:
+    # 用于存储玩家组的列
+    mySQLColumnGroup: ''
+    # -1 表示禁用。如果你希望只有已激活的玩家
+    # 才能登录到你的服务器，你可以在这里设置未激活用户的组编号
+    # 一些论坛/CMS 支持需要此设置
+    nonActivedUserGroup: -1
+    # 其他需要放置用户名的 MySQL 列（区分大小写）
+    mySQLOtherUsernameColumns: []
+    # BCrypt 中需要的日志2轮数（如果你不知道它做什么请不要更改）
+    # 这个值越高，密码哈希越安全，但也会增加服务器的计算负担
+    bCryptLog2Round: 12
+    # phpBB 安装过程中定义的表前缀
+    phpbbTablePrefix: phpbb_
+    # phpBB 已激活组 ID；2 是 phpBB 定义的默认注册组
+    phpbbActivatedGroupId: 2
+    # IP Board 安装过程中定义的表前缀
+    IPBTablePrefix: ipb_
+    # IP Board 默认组 ID；3 是 IP Board 定义的默认注册组
+    IPBActivatedGroupId: 3
+    # Xenforo 安装过程中定义的表前缀
+    XFTablePrefix: xf_
+    # XenForo 默认组 ID；2 是 Xenforo 定义的默认注册组
+    XFActivatedGroupId: 2
+    # WordPress 安装过程中定义的前缀
+    wordpressTablePrefix: wp_
+settings:
+    sessions:
+        # 你想启用会话功能吗？
+        # 如果启用，当玩家成功认证时，
+        # 他的 IP 和昵称将被保存。
+        # 下次玩家加入服务器时，如果他的 IP
+        # 与上次相同且超时时间未过期，他将无需认证。
+        enabled: false
+        # 会话应在多少分钟后过期？
+        # 玩家的会话在超时或 IP 改变后结束
+        timeout: 10
+    # 消息语言，可用语言：
+    # https://github.com/AuthMe/AuthMeReloaded/blob/master/docs/translations.md
+    messagesLanguage: en
+    # 强制 AuthMe 钩入 Vault 而不是特定的权限处理系统。
+    forceVaultHook: false
+    # 日志级别：INFO, FINE, DEBUG。使用 INFO 用于一般消息，
+    # FINE 用于一些额外的详细消息（如密码失败），
+    # DEBUG 用于调试
+    logLevel: FINE
+    # 默认情况下我们在与数据库通信时安排异步任务。如果你想
+    # 让典型的数据库通信同步进行，请将此设置为 false
+    useAsyncTasks: true
+    # 服务器的名称，用于一些占位符。
+    serverName: Your Minecraft Server
+    restrictions:
+        # 未认证的玩家可以聊天吗？
+        # 请记住，此功能还会阻止以下命令列表中未列出的所有命令。
+        allowChat: false
+        # 隐藏未认证玩家的聊天记录吗？
+        hideChat: false
+        # 未认证玩家允许的命令
+        allowCommands: 
+        - /login
+        - /log
+        - /l
+        - /register
+        - /reg
+        - /email
+        - /captcha
+        - /2fa
+        - /totp
+        # 每个 IP 允许的最大注册数
+        # 值 0 表示不限制注册数量！
+        maxRegPerIp: 1
+        # 允许的最小用户名长度
+        minNicknameLength: 3
+        # 允许的最大用户名长度
+        maxNicknameLength: 16
+        # 启用此设置后，在线玩家不会因“在其他位置登录”而被踢出
+        # 此设置将防止潜在的安全漏洞。
+        ForceSingleSession: true
+        ForceSpawnLocOnJoin:
+            # 如果启用，每个在以下世界之一中生成的玩家
+            # 在成功认证后将被传送到生成点。玩家的退出位置将被覆盖。
+            # 这与在加入时将玩家传送到生成点的 "teleportUnAuthedToSpawn" 不同。
+            enabled: false
+            # 需要强制生成位置的世界名称
+            # 区分大小写！
+            worlds: 
+            - world
+            - world_nether
+            - world_the_end
+        # 此选项将保存玩家的退出位置。
+        SaveQuitLocation: false
+        # 要激活受限用户功能，你需要
+        # 启用此选项并配置 AllowedRestrictedUser 字段。
+        AllowRestrictedUser: false
+        # 受限用户功能将踢出以下列表中的玩家
+        # 如果他们的 IP 地址与定义的不匹配。名称区分大小写。
+        # 你可以使用 * 作为通配符（127.0.0.*），或者使用 "regex:" 前缀的正则表达式 regex:127\.0\.0\..*
+        # 示例：
+        #     AllowedRestrictedUser:
+        #     - playername;127.0.0.1
+        #     - playername;regex:127\.0\.0\..*
+        AllowedRestrictedUser: []
+        # 禁止未知 IP 尝试使用受限用户名登录吗？
+        banUnsafedIP: false
+        # 未注册的玩家应立即被踢出吗？
+        kickNonRegistered: false
+        # 玩家输入错误密码时应被踢出吗？
+        kickOnWrongPassword: true
+        # 未登录的玩家应被传送到生成点吗？
+        # 认证后他们将被传送回正常位置。
+        teleportUnAuthedToSpawn: false
+        # 未注册的玩家可以走动吗？
+        allowMovement: false
+        # 多少秒后应踢出未能登录或注册的玩家？设置为 0 以禁用。
+        timeout: 30
+        # 玩家名称中允许的字符的正则表达式模式。
+        allowedNicknameCharacters: '[a-zA-Z0-9_]*'
+        # 未注册玩家可以走多远？
+        # 设置为 0 表示无限半径
+        allowedMovementRadius: 100
+        # 我们在登录前保护玩家库存吗？需要 ProtocolLib。
+        ProtectInventoryBeforeLogIn: true
+        # 我们在登录前拒绝 TabComplete 功能吗？需要 ProtocolLib。
+        DenyTabCompleteBeforeLogin: false
+        # 当玩家加入时，我们是否显示其他玩家的账户？
+        # 权限：/authme.admin.accounts
+        displayOtherAccounts: true
+        # 生成优先级；可选值：authme, essentials, cmi, multiverse, default
+        spawnPriority: authme,essentials,cmi,multiverse,default
+        # 每个 IP 允许的最大登录数
+        maxLoginPerIp: 0
+        # 每个 IP 允许的最大加入数
+        maxJoinPerIp: 0
+        # 如果设置为 true，AuthMe 将永远不会传送玩家！
+        noTeleport: false
+        # 密码中允许的字符的正则表达式语法。默认 [!-~] 允许所有可见的 ASCII
+        # 字符，这是我们推荐的。另请参见 http://asciitable.com
+        # 你可以使用 https://regex101.com 测试你的正则表达式
+        allowedPasswordCharacters: '[!-~]*'
+    GameMode:
+        # 玩家加入时强制生存游戏模式吗？
+        ForceSurvivalMode: false
+    unrestrictions:
+        # 在下面，你可以列出 AuthMe 将忽略的所有账户名称
+        # 用于注册或登录。自行配置风险！！
+        # 此选项增加了与 BuildCraft 和一些其他模组的兼容性。
+        # 它区分大小写！示例：
+        # UnrestrictedName:
+        # - 'npcPlayer'
+        # - 'npcPlayer2'
+        UnrestrictedName: []
+        # 在下面，你可以列出 AuthMe 将忽略的所有库存名称
+        # 用于注册或登录。自行配置风险！！
+        # 此选项增加了与一些模组的兼容性。
+        # 它区分大小写！示例：
+        # UnrestrictedInventories:
+        # - 'myCustomInventory1'
+        # - 'myCustomInventory2'
+        UnrestrictedInventories: []
+    security:
+        # 密码的最小长度
+        minPasswordLength: 5
+        # 密码的最大长度
+        passwordMaxLength: 30
+        # 可能的值：SHA256, BCRYPT, BCRYPT2Y, PBKDF2, SALTEDSHA512,
+        # MYBB, IPB3, PHPBB, PHPFUSION, SMF, XENFORO, XAUTH, JOOMLA, WBB3, WBB4, MD5VB,
+        # PBKDF2DJANGO, WORDPRESS, ROYALAUTH, ARGON2, CUSTOM（仅限开发人员）。完整列表见
+        # https://github.com/AuthMe/AuthMeReloaded/blob/master/docs/hash_algorithms.md
+        # 如果你使用 ARGON2，请确保你的系统上安装了 argon2 库
+        passwordHash: SHA256
+        # 如果密码检查失败，AuthMe 还将尝试使用以下哈希方法进行检查。
+        # 当你从一个哈希方法更改为另一个时使用此设置。
+        # AuthMe 将更新为新的哈希。示例：
+        # legacyHashes:
+        # - 'SHA1'
+        legacyHashes: []
+        # SALTED2MD5 MD5(MD5(password)+salt) 的盐长度
+        doubleMD5SaltLength: 8
+        # 如果 passwordHash 设置为 PBKDF2，则使用的轮数。默认值为 10000
+        pbkdf2Rounds: 10000
+        # 防止使用不安全的密码；请小写输入！
+        # 你应该始终将 'help' 设置为不安全密码，因为可能存在冲突。
+        # unsafePasswords:
+        # - '123456'
+        # - 'password'
+        # - 'help'
+        unsafePasswords: 
+        - '123456'
+        - password
+        - qwerty
+        - '12345'
+        - '54321'
+        - '123456789'
+        - help
+    registration:
+        # 服务器上启用注册吗？
+        enabled: true
+        # 每隔 X 秒发送一条消息给玩家，
+        # 提醒他们需要登录/注册
+        messageInterval: 5
+        # 只有已注册并登录的玩家才能游玩。
+        # 请参阅限制了解例外情况
+        force: true
+        # 注册类型：PASSWORD 或 EMAIL
+        # PASSWORD = 账户使用用户提供的密码注册；
+        # EMAIL = 密码生成后发送到用户提供的电子邮件。
+        # 更多信息见 https://github.com/AuthMe/AuthMeReloaded/wiki/Registration
+        type: PASSWORD
+        # /register 命令的第二个参数：NONE = 无第二个参数
+        # CONFIRMATION = 必须重复第一个参数（密码或电子邮件）
+        # EMAIL_OPTIONAL = 对于密码注册：第二个参数可以为空或包含电子邮件地址
+        # EMAIL_MANDATORY = 对于密码注册：第二个参数必须是电子邮件地址
+        secondArg: CONFIRMATION
+        # 我们在成功注册后是否强制踢出玩家？
+        # 不要与下面的登录功能一起使用
+        forceKickAfterRegister: false
+        # AuthMe 是否需要在成功注册后强制执行 /login？
+        forceLoginAfterRegister: false
+    # 启用后，在登录后显示欢迎消息（welcome.txt）
+    # 你可以在 welcome.txt 中使用颜色 + 一些替换字符串：
+    # {PLAYER}: 玩家名称，{ONLINE}: 显示在线玩家数量，
+    # {MAXPLAYERS}: 显示服务器槽位，{IP}: 玩家 IP，{LOGINS}: 登录的玩家数量，
+    # {WORLD}: 玩家当前世界，{SERVER}: 服务器名称
+    # {VERSION}: 获取当前的 bukkit 版本，{COUNTRY}: 玩家国家
+    # {DISPLAYNAME}: 玩家显示名称（带颜色）
+    # {DISPLAYNAMENOCOLOR}: 玩家显示名称（无颜色）
+    useWelcomeMessage: true
+    # 将欢迎消息广播到服务器还是仅播放给玩家？
+    # 设置 true 为服务器，false 为玩家
+    broadcastWelcomeMessage: false
+    # 我们是否应延迟加入消息并在玩家登录后显示？
+    delayJoinMessage: false
+    # 登录后将发送的自定义加入消息，
+    # 保持为空以使用原始消息。
+    # 可用变量：
+    # {PLAYERNAME}: 玩家名称（无颜色）
+    # {DISPLAYNAME}: 玩家显示名称（带颜色）
+    # {DISPLAYNAMENOCOLOR}: 玩家显示名称（无颜色）
+    customJoinMessage: ''
+    # 我们是否应移除未登录用户的退出消息？
+    removeUnloggedLeaveMessage: false
+    # 我们是否应移除所有加入消息？
+    removeJoinMessage: false
+    # 我们是否应移除所有退出消息？
+    removeLeaveMessage: false
+    # 我们是否需要在登录/注册前添加致盲药水效果？
+    applyBlindEffect: false
+    # 我们是否需要防止使用其他大小写登录？
+    # 如果 Xephi 已注册，那么 Xephi 可以登录，但 XEPHI/xephi/XePhI 不行
+    preventOtherCase: true
+GroupOptions:
+    # 启用后，在玩家登录前切换到定义的权限组。
+    # 请参阅下面的详细解释。
+    enablePermissionCheck: false
+    # 这是一个非常重要的选项：如果已注册的玩家加入服务器
+    # AuthMe 将把他切换到 unLoggedInGroup。这应该防止所有主要漏洞。
+    # 你可以设置权限插件的此特殊组，使其没有权限，
+    # 或者只有聊天权限（或发送私人消息等）。
+    # 更好的方法是为该组设置少量权限，这样如果玩家
+    # 尝试利用账户，他们只能执行你为该组定义的操作。
+    # 登录后，玩家将被移动到正确的权限组！
+    # 请注意，组名称区分大小写，因此 'admin' 与 'Admin' 不同
+    # 否则你的组将被清除，玩家将加入默认组 []！
+    # 示例：registeredPlayerGroup: 'NotLogged'
+    registeredPlayerGroup: ''
+    # 与上面类似，未注册的玩家可以被设置为以下
+    # 权限组
+    unregisteredPlayerGroup: ''
+Email:
+    # Email SMTP 服务器主机
+    mailSMTP: smtp.gmail.com
+    # Email SMTP 服务器端口
+    mailPort: 465
+    # 仅影响端口 25：启用 TLS/STARTTLS？
+    useTls: true
+    # 发送邮件的电子邮件账户
+    mailAccount: ''
+    # 电子邮件账户密码
+    mailPassword: ''
+    # 电子邮件地址，当 mailAccount 不是账户的电子邮件地址时填写
+    mailAddress: ''
+    # 自定义发件人名称，替换邮件中的 mailAccount 名称
+    mailSenderName: ''
+    # 恢复密码长度
+    RecoveryPasswordLength: 8
+    # 邮件主题
+    mailSubject: Your new AuthMe password
+    # 像 maxRegPerIP 但针对电子邮件
+    maxRegPerEmail: 1
+    # 提醒玩家添加电子邮件吗？
+    recallPlayers: false
+    # 回忆调度程序的延迟分钟数
+    delayRecall: 5
+    # 邮件的黑名单域名
+    emailBlacklisted: 
+    - 10minutemail.com
+    # 仅允许这些域名的电子邮件
+    emailWhitelisted: []
+    # 将新密码以图像形式发送吗？
+    generateImage: false
+    # OAuth2 令牌
+    emailOauth2Token: ''
+Hooks:
+    # 我们需要与 multiverse 钩子一起用于生成检查吗？
+    multiverse: true
+    # 我们需要与 BungeeCord 钩子吗？
+    bungeecord: false
+    # 注册/登录后将玩家发送到此 BungeeCord 服务器
+    sendPlayerTo: ''
+    # 我们需要在加入时禁用 Essentials SocialSpy 吗？
+    disableSocialSpy: false
+    # 我们需要在加入时强制执行 /motd Essentials 命令吗？
+    useEssentialsMotd: false
+Protection:
+    # 启用一些服务器保护（基于国家的登录，反机器人）
+    enableProtection: false
+    # 也将保护应用于已注册的用户名
+    enableProtectionRegistered: true
+    geoIpDatabase:
+        # 启用 GeoIp 数据库
+        enabled: true
+        # 用于下载 GeoIp 数据库的 MaxMind 客户端 ID，
+        # 在 https://www.maxmind.com/en/accounts/current/license-key 获取一个
+        # EssentialsX 项目有一个非常有用的教程，介绍如何生成
+        # 许可证密钥：https://github.com/EssentialsX/Wiki/blob/master/GeoIP.md
+        clientId: ''
+        # 用于下载 GeoIp 数据库的 MaxMind 许可证密钥。
+        licenseKey: ''
+    # 允许加入服务器并注册的国家。有关国家代码，请参见
+    # https://dev.maxmind.com/geoip/legacy/codes/iso3166/
+    # 使用 "LOCALHOST" 表示本地地址。
+    # 请使用引号！
+    countries: 
+    - US
+    - GB
+    - LOCALHOST
+    # 不允许加入服务器并注册的国家
+    # 请使用引号！
+    countriesBlacklist: 
+    - A1
+    # 我们需要启用自动反机器人系统吗？
+    enableAntiBot: true
+    # 时间间隔（秒）
+    antiBotInterval: 5
+    # 在反机器人系统自动启用之前允许登录的玩家数量
+    antiBotSensibility: 10
+    # 反机器人自动系统的持续时间（分钟）
+    antiBotDuration: 10
+    # 反机器人激活前的延迟（秒）
+    antiBotDelay: 60
+    quickCommands:
+        # 在加入过程后定义的时间内发出命令后踢出玩家
+        denyCommandsBeforeMilliseconds: 1000
+Purge:
+    # 如果启用，AuthMe 将自动清理旧的、未使用的账户
+    useAutoPurge: false
+    # 账户在多少天后应被清理
+    daysBeforeRemovePlayer: 60
+    # 我们在清理过程中需要移除 player.dat 文件吗？
+    removePlayerDat: false
+    # 我们在清理过程中需要移除 Essentials/userdata/player.yml 文件吗？
+    removeEssentialsFile: false
+    # 存储 players.dat 的世界
+    defaultWorld: world
+    # 在清理过程中移除 LimitedCreative/inventories/player.yml，player_creative.yml 文件吗？
+    removeLimitedCreativesInventories: false
+    # 我们在清理过程中需要移除 AntiXRayData/PlayerData/player 文件吗？
+    removeAntiXRayFile: false
+    # 我们在清理过程中需要移除权限吗？
+    removePermissions: false
+Security:
+    SQLProblem:
+        # 如果无法联系 sql 数据库，是否停止服务器
+        # 请注意，如果你将此设置为 false，
+        # AuthMe 将自动禁用，服务器将不再受保护！
+        stopServer: true
+    console:
+        # 也将 AuthMe 日志输出复制到一个单独的文件中吗？
+        logConsole: true
+    captcha:
+        # 当玩家密码输入错误次数过多时启用验证码
+        useCaptcha: false
+        # 需要验证码前允许的最大尝试次数
+        maxLoginTry: 5
+        # 验证码长度
+        captchaLength: 5
+        # 玩家登录尝试计数重置的分钟数
+        captchaCountReset: 60
+        # 要求验证码才能注册吗？
+        requireForRegistration: false
+    tempban:
+        # 如果玩家密码输入错误次数过多，临时封禁用户的 IP 地址
+        enableTempban: false
+        # 用户在 IP 被临时封禁前允许尝试登录的次数
+        maxLoginTries: 10
+        # IP 地址将被临时封禁的时间长度（分钟）
+        # 默认：480 分钟，或 8 小时
+        tempbanLength: 480
+        # 按 IP 和用户名重置失败登录计数的分钟数
+        # 默认：480 分钟（8 小时）
+        minutesBeforeCounterReset: 480
+        # 要使用的命令，而不是使用内部封禁系统，为空表示禁用。
+        # 可用占位符：%player%，%ip%
+        customCommand: ''
+    recoveryCode:
+        # 恢复码的字符数（0 表示禁用）
+        length: 8
+        # 恢复码的有效时长（小时）
+        validForHours: 4
+        # 输入恢复码的最大尝试次数
+        maxTries: 3
+        # 玩家在密码恢复后无需登录即可更改密码的时间长度
+        # 以分钟为单位。默认：2 分钟
+        passwordChangeTimeout: 2
+    emailRecovery:
+        # 用户在可以再次发送密码恢复邮件前的等待秒数
+        # 这可以防止攻击者滥用 AuthMe 的邮件功能。
+        cooldown: 60
+    privacy:
+        # 使用 /email show 显示的邮件将被部分隐藏
+        # （如果启用）
+        # 原始邮件：my.email@example.com
+        # 隐藏邮件：my.***@***mple.com
+        enableEmailMasking: false
+        # 验证码过期的分钟数
+        verificationCodeExpiration: 10
+# 在用户登录前，玩家的某些属性会被暂时移除，
+# 例如 OP 状态、飞行能力以及行走/飞行速度。
+# 一旦用户登录，我们会将之前保存的属性添加回来。
+# 在此部分，你可以定义如何处理这些属性。
+# 请参阅 https://github.com/AuthMe/AuthMeReloaded/wiki/Limbo-players
+limbo:
+    persistence:
+        # 除了将数据存储在内存中，你可以定义是否/如何将数据持久化
+        # 到磁盘。这在服务器崩溃时非常有用，这样下次服务器启动时我们可以
+        # 正确恢复诸如 OP 状态、飞行能力以及行走/飞行速度等属性。
+        # DISABLED：不进行磁盘存储，
+        # INDIVIDUAL_FILES：每个玩家数据存储在各自的文件中，
+        # DISTRIBUTED_FILES：根据玩家的 UUID 将玩家分布在不同的文件中，见下文
+        type: INDIVIDUAL_FILES
+        # 此设置仅影响 DISTRIBUTED_FILES 持久化。分布式文件
+        # 持久化尝试通过根据玩家的 UUID 将玩家分布在各个
+        # 桶中来减少文件数量。此设置定义玩家应分布在多少个文件中。可能的值：ONE, FOUR, EIGHT, SIXTEEN, THIRTY_TWO, SIXTY_FOUR,
+        # ONE_TWENTY for 128, TWO_FIFTY for 256。
+        # 例如，如果你预计有 100 个未登录的玩家，设置为 SIXTEEN 将平均
+        # 每个文件有 6.25 个玩家（100 / 16）。
+        # 注意：如果你更改此设置，所有数据都将被迁移。如果你有大量数据，
+        # 只在服务器重启时更改此设置，而不是使用 /authme reload。
+        distributionSize: SIXTEEN
+    # 是否允许玩家飞行：RESTORE, ENABLE, DISABLE, NOTHING。
+    # RESTORE 将玩家的旧属性恢复。NOTHING 将防止 AuthMe
+    # 修改玩家的 “允许飞行” 属性。
+    restoreAllowFlight: RESTORE
+    # 恢复飞行速度：RESTORE, DEFAULT, MAX_RESTORE, RESTORE_NO_ZERO。
+    # RESTORE：恢复玩家的速度；
+    # DEFAULT：始终设置为默认速度；
+    # MAX_RESTORE：取玩家当前速度和之前速度的最大值
+    # RESTORE_NO_ZERO：类似于 ‘恢复’，但如果玩家的速度为 0，则设置为默认速度
+    restoreFlySpeed: RESTORE_NO_ZERO
+    # 恢复行走速度：RESTORE, DEFAULT, MAX_RESTORE, RESTORE_NO_ZERO。
+    # 请参阅上面的值描述。
+    restoreWalkSpeed: RESTORE_NO_ZERO
+BackupSystem:
+    # 备份的一般配置：如果为 false，则无法进行备份
+    ActivateBackup: false
+    # 在服务器启动时创建备份
+    OnServerStart: false
+    # 在服务器停止时创建备份
+    OnServerStop: true
+    # 仅限 Windows：MySQL 安装路径
+    MysqlWindowsPath: C:\Program Files\MySQL\MySQL Server 5.1\
+# 转换器设置：请参阅 https://github.com/AuthMe/AuthMeReloaded/wiki/Converters
+Converter:
+    Rakamak:
+        # Rakamak 文件名
+        fileName: users.rak
+        # Rakamak 使用 IP？
+        useIP: false
+        # Rakamak IP 文件名
+        ipFileName: UsersIp.rak
+    CrazyLogin:
+        # CrazyLogin 数据库文件名
+        fileName: accounts.db
+    loginSecurity:
+        # LoginSecurity：从 SQLite 转换；如果为 false 则使用 MySQL
+        useSqlite: true
+        mySql:
+            # LoginSecurity MySQL：数据库主机
+            host: ''
+            # LoginSecurity MySQL：数据库名称
+            database: ''
+            # LoginSecurity MySQL：数据库用户
+            user: ''
+            # LoginSecurity MySQL：数据库用户的密码
+            password: ''
