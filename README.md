@@ -1,2 +1,2 @@
-# Thousands_Minigames
-Thousands_Minigames
+# Thousands Minigames
+Thousands Minigames
