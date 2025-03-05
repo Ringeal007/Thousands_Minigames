@@ -1,0 +1,91 @@
+debug: true
+# 默认语言
+default-language: zhcn
+# 禁用此插件中包含的所有指标。
+disable-metrics: false
+# 是否在启动时生成资源包文件的哈希值：
+autogeneratehashes: true
+# 是否将包哈希附加到包的 URL 末尾，例如 url#hash。
+# 这是必要的，用于解决 Vanilla 的一个漏洞，该漏洞阻止已更改的包被正确重新下载
+# 详情见：https://bugs.mojang.com/browse/MC-164316
+append-hash-to-url: true
+# 是否 /usepack 应在没有任何参数时临时或永久应用包：
+usepack-is-temporary: true
+# 玩家存储的包是否会覆盖匹配的分配
+stored-packs-override-assignments: false
+# 当手动设置一个永久包时，如果用户在少于 x 秒内断开连接，它将被重置。
+# 0 或任何低于此值的值将禁用此功能
+permanent-pack-remove-time: 30
+# 是否与身份验证插件集成
+# 当前支持：AuthMe, OpeNLogin 和 nLogin
+use-auth-plugin: true
+# 可以在此部分定义不同的包
+packs:
+  examplepack: 
+   # 客户端应从中下载资源包的地址。
+   # 必须是直接下载链接！不要使用 mediafire/mega/其他一键托管服务！
+    url: http://example.com/lobbyresourcepack.zip
+   # 资源包 zip 文件的 sha1 哈希值， 
+   # 不被 Bukkit 支持，因此目前在这里写什么都没关系！
+    hash: abcdef012345678abcdef012345678abcdef0123
+   # 此资源包的格式版本
+    format: 1
+   # 直接定义 Minecraft 版本而不是格式
+   # 支持版本和协议编号的字符串表示
+   # 你不需要同时定义版本和格式（如果有，则最高的版本将生效）
+    version: "1.8"
+   # 此包是否仅发送给具有特定权限的玩家
+   # 权限：worldresourcepacks.pack.<packname>
+    restricted: false
+   # 如果你不想使用默认的 worldresourcepacks.pack.<packname> 权限，你可以为此包定义一个特定的权限！
+    permission: worldresourcepacks.pack.examplepack
+  globalpack:
+    url: http://example.com/globalpack.zip
+    hash: abcdef012345678abcdef012345678abcdef0123
+  gamepack:
+    # 设置不同的变体，例如针对不同版本或权限
+    # 此列表支持所有正常的包设置，并从上到下进行检查。
+    # 将使用第一个匹配玩家的包。
+    variants:
+    - url: http://example.com/minigameresourcepack_1_15.zip
+      hash: 012345678abcdef012345678abcdef012345678a
+      version: '1.15'
+    - url: http://example.com/minigameresourcepack_1_12.zip
+      hash: 012345678abcdef01234567dddcdef012345678a
+      version: '1.12'
+  # 可以定义任意数量的包
+  another_example_pack:
+    url: http://example.com/another.zip
+    hash: abcdef012345678abcdef012345678abcdef0123
+# 空包，用于将包重置为默认包
+empty:
+  url: http://cdn.moep.tv/files/Empty.zip
+  hash: 01517226212d27586ea0c5d6aff1aa5492dd2484
+global:
+  pack: globalpack
+  # 如果用户已经拥有这些包，则不会替换的包列表
+  # 如果没有设置主包，第一个包也将用于重置
+  # 如果用户拥有一个非可选包，此列表也将用于选择一个包。（从上到下）
+  #optional-packs:
+  #- examplepack2
+  # 延迟（以刻为单位），在发送包之前等待玩家登录/切换到世界
+  send-delay: 10
+# 可以在此定义具有不同包的不同世界
+worlds:
+  # 名为 "your_example_world" 的世界配置
+  your_example_world:
+    # 从 1.20.3 开始，你可以定义多个包
+    # 在之前的版本中，仅使用第一个包
+    packs:
+    - examplepack
+    - globalpack
+    #optional-packs:
+    #- examplepack2
+  your_example_nether:
+    pack: examplepack2
+    # 使用正则表达式定位所有具有特定名称的世界
+    regex: 'example_nether_.*'
+  # 可以定义任意数量的世界。
+  # 除非指定了正则表达式，否则该部分的名称即为世界名称。
+  another_example_world:
+    pack: another_example_pack
