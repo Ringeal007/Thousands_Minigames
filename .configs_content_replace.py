@@ -1,11 +1,8 @@
 import os
+from typing import Dict, List, Tuple
 
-# 硬编码替换规则（保持原有格式，包括空格）
-REPLACEMENT_RULES = {
-    # server.properties的替换规则
+REPLACEMENT_RULES: Dict[str, List[Tuple[str, str]]] = {
     'server.properties': [
-        # 旧内容 -> 新内容（严格保持格式）
-        # 注意！最后一个括号后面不要带逗号！
         ('accepts-transfers=false', 'accepts-transfers=true'),
         ('allow-flight=false', 'allow-flight=true'),
         ('allow-nether=true', 'allow-nether=false'),
@@ -20,52 +17,90 @@ REPLACEMENT_RULES = {
         ('spawn-protection=16', 'spawn-protection=0'),
         ('view-distance=10', 'view-distance=16')
     ],
-    
-    # bukkit.yml的替换规则（特别注意前导空格）
     'bukkit.yml': [
         ('  allow-end: true', '  allow-end: false')
+    ],
+    'commands.yml': [
+        (
+            'command-block-overrides: []',
+            'command-block-overrides:\\n    - "*"'
+        )
     ]
 }
 
-def process_config_file(filename, file_type):
-    """处理单个配置文件"""
-    with open(filename, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+def process_config_file(filename: str, file_type: str) -> None:
+    """处理配置文件，严格多行匹配"""
+    try:
+        with open(filename, 'r', encoding='utf-8') as f:
+            original_lines = [line.rstrip('\n\r') for line in f.readlines()]
+    except UnicodeDecodeError:
+        print(f"警告: 文件 {filename} 解码失败，已跳过")
+        return
 
+    modified = False
     new_lines = []
-    for line in lines:
-        original_line = line.rstrip('\n')  # 保留原有换行符
+    i = 0
+    total_lines = len(original_lines)
+
+    while i < total_lines:
+        line = original_lines[i]
         replaced = False
-        
-        # 遍历该文件类型的所有替换规则
-        for (old_line, new_line) in REPLACEMENT_RULES.get(file_type, []):
-            if original_line == old_line:
-                # 保持原有换行符状态
-                new_line_with_eol = new_line + ('\n' if line.endswith('\n') else '')
-                new_lines.append(new_line_with_eol)
+
+        # 遍历所有替换规则
+        for old, new in REPLACEMENT_RULES.get(file_type, []):
+            old_lines = old.split('\\n')
+            new_lines_content = new.replace('\\n', '\n').split('\n')
+            
+            # 检查剩余行数是否足够
+            if i + len(old_lines) > total_lines:
+                continue
+                
+            # 精确匹配多行内容
+            match = True
+            for j in range(len(old_lines)):
+                if original_lines[i + j] != old_lines[j]:
+                    match = False
+                    break
+
+            if match:
+                # 添加新内容（自动处理换行符）
+                new_lines.extend([nl + '\n' for nl in new_lines_content[:-1]])
+                new_lines.append(new_lines_content[-1] + '\n')
+                
+                i += len(old_lines) - 1  # 跳过已处理行
+                modified = True
                 replaced = True
                 break
-        
+
         if not replaced:
-            new_lines.append(line)
+            new_lines.append(original_lines[i] + '\n')
+        
+        i += 1
 
-    # 写回文件（保留原有编码和换行符）
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.writelines(new_lines)
+    if modified:
+        try:
+            # 统一使用LF换行符保证稳定性
+            with open(filename, 'w', encoding='utf-8', newline='\n') as f:
+                f.writelines([line.rstrip('\r\n') + '\n' for line in new_lines])
+            print(f"成功更新: {filename}")
+        except Exception as e:
+            print(f"错误: 写入 {filename} 失败 - {str(e)}")
 
-def main():
-    # 遍历当前目录
+def scan_config_files():
+    """扫描并处理配置文件"""
     for filename in os.listdir('.'):
-        # 识别文件类型
         if filename.endswith('.server.properties'):
             file_type = 'server.properties'
         elif filename.endswith('.bukkit.yml'):
             file_type = 'bukkit.yml'
+        elif filename.endswith('.commands.yml'):
+            file_type = 'commands.yml'
         else:
             continue
-
-        # 执行替换操作
+        
         process_config_file(filename, file_type)
 
 if __name__ == '__main__':
-    main()
+    print("=== 配置文件替换工具 ===")
+    scan_config_files()
+    print("=== 操作执行完毕 ===")
