@@ -1,0 +1,119 @@
+# 需要帮助？加入我们的Discord：https://discord.gg/fh62mxU
+# ForcePack 文档：https://fortitude.islandearth.net/category/forcepack
+
+# 启用后，本插件将专用于增强与Velocity代理的兼容性
+# 这是「移动限制」功能在Velocity环境下正常运作的必要条件
+# 除踢出外的其他操作仍会生效，绕过权限系统也将保持启用
+velocity-mode: false
+
+# 若启用，玩家在资源包加载完成前将被限制移动（防逃逸机制）
+prevent-movement: true
+
+# 若启用，正在加载资源包的玩家将获得伤害免疫
+prevent-damage: true
+
+# 在URL末尾追加哈希值以修复MC-164316客户端漏洞
+enable-mc-164316-fix: true
+
+# 是否延迟至服务器启动后的首个游戏刻加载ForcePack？
+# 确保在可能托管资源包的其他插件之后初始化
+# 以便复用其他插件的资源包托管功能
+load-last: false
+
+# 是否等待ItemsAdder完成资源包托管？
+await-items-adder-host: true
+
+# 是否启用1.17+新版强制资源包界面？
+# 设为false时，1.17+客户端仍会显示自定义提示消息
+# 注意：启用新版界面将导致自定义踢出消息失效（客户端自主断开）
+use-new-force-pack-screen: true
+
+# 是否尝试拦截作弊客户端发送的虚假资源包接收数据包？
+# 虽非绝对防御，但可有效阻止部分简易作弊手段
+try-to-stop-fake-accept-hacks: true
+
+# 网络延迟较高的玩家可能在接收与加载资源包之间存在间隔
+# 是否显示「正在加载，请稍候」的标题提示？
+send-loading-title: true
+
+# 发送资源包前的延迟刻数（20刻=1秒）
+# 适用于安装有「玩家加入后传送」类插件的情况（避免传送关闭资源包界面）
+delay-pack-sending-by: 0
+
+# ForcePack内置Web服务器配置
+# 详见：https://fortitude.islandearth.net/forcepack/configuration#self-hosting
+# 一般情况下无需修改IP（localhost），插件会自动解析正确地址
+# 启用后支持在资源包URL中使用forcepack://协议
+# 启用此功能不强制使用本地资源包，需确保端口开放（推荐通过翼龙面板操作）
+web-server:
+  enabled: false
+  server-ip: localhost
+  port: 8080
+
+Server:
+  packs:
+    all:
+      # 资源包URL必须为.zip文件的直链。Dropbox链接需添加?dl=1后缀
+      # 使用内置服务器托管本地文件时，应采用forcepack://协议+相对路径格式
+      # 示例：plugins/ForcePack/pack.zip → forcepack://pack.zip
+      # 仅1.20.3+客户端支持多资源包，旧版客户端仅接收首项配置
+      # 禁用自动生成哈希时，urls与hashes数组长度必须严格一致
+      urls: ["https://www.convallyria.com/files/BlankPack.zip"]
+      # 是否自动生成SHA-1哈希？
+      # 启用时将忽略下方哈希值（生成失败时回退使用）
+      generate-hash: false
+      # 哈希值获取指南：https://fortitude.islandearth.net/forcepack/configuration#getting-the-sha-1-hash-of-a-resource-pack
+      hashes: ["118AFFFC54CDCD308702F81BA24E03223F15FE5F"]
+    # 可在此为特定资源包格式版本（如versions: 12）创建专属配置
+    # 必须保留all配置作为版本回退基准
+
+  Actions:
+    # 禁用命令需将Commands设为空数组[]
+    # 完整状态列表：https://jd.advntr.dev/api/4.15.0/net/kyori/adventure/resource/ResourcePackStatus.html
+    # DOWNLOADED/FAILED_RELOAD/DISCARDED仅作用于1.20.3+客户端
+    ACCEPTED:
+      kick: false
+      Commands:
+        - say [player] accepted the resource pack!
+    DOWNLOADED:
+      kick: false
+      Commands:
+        - say [player] finished downloading the resource pack!
+    SUCCESSFULLY_LOADED:
+      kick: false
+      Commands:
+        - say [player] successfully loaded the resource pack!
+    DECLINED:
+      kick: true
+      Commands:
+        - say [player] denied the resource pack!
+    FAILED_DOWNLOAD:
+      kick: true
+      Commands:
+        - say [player] failed to download the resource pack!
+    FAILED_RELOAD:
+      kick: true
+      Commands:
+        - say [player] failed to reload the resource pack!
+    DISCARDED:
+      kick: true
+      Commands:
+        - say [player] discarded the resource pack!
+
+  # 资源包提示界面重发间隔（单位：游戏刻）
+  Update GUI Speed: 20
+  # 是否启用界面更新（仅对≤1.12版本客户端有效）
+  Update GUI: true
+  # 是否校验资源包URL与哈希值？
+  verify: true
+  # 是否在插件重载时重新发送资源包？（已接收玩家将获取更新版本）
+  resend: true
+  # 是否强制发送与客户端版本不兼容的资源包？
+  force-invalid-size: false
+  # 是否跳过Geyser玩家？（仅在启用Geyser时需开启）
+  geyser: false
+  # 是否启用forcepack.bypass权限？禁用后所有OP将失去豁免权
+  # 建议通过权限系统精细控制而非全局禁用
+  bypass-permission: true
+  # 是否开启调试模式？（控制台输出详细信息）
+  debug: false
