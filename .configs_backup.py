@@ -8,7 +8,7 @@ def backup_config_files():
     自动备份当前目录中以下类型的配置文件：
     - .server.properties
     - .bukkit.yml
-    - .command.yml
+    - .commands.yml
     备份文件命名格式：原文件名.年月日_时分秒.bak
     """
     
@@ -24,7 +24,7 @@ def backup_config_files():
         if os.path.isfile(entry) and (
             entry.endswith(".server.properties") or  # Minecraft 服务端配置
             entry.endswith(".bukkit.yml") or         # CraftBukkit 插件配置
-            entry.endswith(".command.yml")           # 自定义命令配置
+            entry.endswith(".commands.yml")           # 自定义命令配置
         ):
             # 构建备份文件名（保留原扩展名）
             backup_name = f"{entry}.{timestamp}.bak"
