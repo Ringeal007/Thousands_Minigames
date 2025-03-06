@@ -74,4 +74,4 @@ spigot-20.1.jar
 
 ## 鸣谢
 - <a href="https://github.com/YShenZe">@YShenZe</a>
-- <a href="https://github.com/LateDreamXD">@LateDreamCD</a>
+- <a href="https://github.com/LateDreamXD">@LateDreamXD</a>
