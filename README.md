@@ -71,3 +71,7 @@ spigot-20.1.jar
 - `--world-dir`：地图存储目录
 - `--plugins`：插件目录
 - `--level-name`：默认加载的世界名称
+
+## 鸣谢
+- <a href="https://github.com/YShenZe">@YShenZe</a>
+- <a href="https://github.com/LateDreamXD"@LateDreamCD</a>
