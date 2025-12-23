@@ -18,6 +18,7 @@ REPLACEMENT_RULES: Dict[str, List[Tuple[str, str]]] = {
         ('view-distance=10', 'view-distance=16')
     ],
     'bukkit.yml': [
+        ('  allow-nether: true', '  allow-nether: false'),
         ('  allow-end: true', '  allow-end: false')
     ],
     'commands.yml': [
