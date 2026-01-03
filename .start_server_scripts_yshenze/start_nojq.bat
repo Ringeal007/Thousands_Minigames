@@ -72,7 +72,7 @@ if not exist "%ServerJar%" (
 cd ..\
 
 :: 启动Java服务端（带详细JVM参数配置）
-".\runtimes\zulu-21\bin\java.exe" ^
+".\runtimes\zulu-25\bin\java.exe" ^
 -Xms6144M -Xmx6144M        :: 初始/最大堆内存设为6GB ^
 -XX:+UseG1GC               :: 启用G1垃圾回收器 ^
 -XX:+ParallelRefProcEnabled ^

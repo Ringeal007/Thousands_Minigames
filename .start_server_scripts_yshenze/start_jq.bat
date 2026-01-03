@@ -53,7 +53,7 @@ if not exist "%ServerJar%" (
 )
 
 REM 启动Minecraft服务器（使用优化后的JVM参数）
-".\runtimes\zulu-21\bin\java.exe" ^
+".\runtimes\zulu-25\bin\java.exe" ^
 -Xms6144M -Xmx6144M ^  REM 初始/最大堆内存设置为6GB
 -XX:+UseG1GC ^         REM 使用G1垃圾回收器
 -XX:+ParallelRefProcEnabled ^
