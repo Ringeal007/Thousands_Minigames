@@ -8,7 +8,7 @@
 # Discord: https://discord.gg/papermc
 # Website: https://papermc.io/
 
-command-block-overrides: []
+command-block-overrides: ['*']
 ignore-vanilla-permissions: false
 aliases:
   icanhasbukkit:

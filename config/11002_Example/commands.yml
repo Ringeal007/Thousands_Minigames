@@ -10,7 +10,7 @@
 # Forums: http://www.spigotmc.org/
 # Bug tracker: http://www.spigotmc.org/go/bugs
 
-command-block-overrides: []
+command-block-overrides: ['*']
 aliases:
   icanhasbukkit:
   - version $1-
