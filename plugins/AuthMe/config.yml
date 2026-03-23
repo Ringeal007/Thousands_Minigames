@@ -104,13 +104,13 @@ settings:
         # 他的 IP 和昵称将被保存。
         # 下次玩家加入服务器时，如果他的 IP
         # 与上次相同且超时时间未过期，他将无需认证。
-        enabled: false
+        enabled: true
         # 会话应在多少分钟后过期？
         # 玩家的会话在超时或 IP 改变后结束
         timeout: 10
     # 消息语言，可用语言：
     # https://github.com/AuthMe/AuthMeReloaded/blob/master/docs/translations.md
-    messagesLanguage: en
+    messagesLanguage: zhcn
     # 强制 AuthMe 钩入 Vault 而不是特定的权限处理系统。
     forceVaultHook: false
     # 日志级别：INFO, FINE, DEBUG。使用 INFO 用于一般消息，
@@ -121,7 +121,7 @@ settings:
     # 让典型的数据库通信同步进行，请将此设置为 false
     useAsyncTasks: true
     # 服务器的名称，用于一些占位符。
-    serverName: Your Minecraft Server
+    serverName: Thousands Minigames
     restrictions:
         # 未认证的玩家可以聊天吗？
         # 请记住，此功能还会阻止以下命令列表中未列出的所有命令。
@@ -141,7 +141,7 @@ settings:
         - /totp
         # 每个 IP 允许的最大注册数
         # 值 0 表示不限制注册数量！
-        maxRegPerIp: 1
+        maxRegPerIp: 0
         # 允许的最小用户名长度
         minNicknameLength: 3
         # 允许的最大用户名长度
@@ -178,14 +178,15 @@ settings:
         # 未注册的玩家应立即被踢出吗？
         kickNonRegistered: false
         # 玩家输入错误密码时应被踢出吗？
-        kickOnWrongPassword: true
+        kickOnWrongPassword: false
         # 未登录的玩家应被传送到生成点吗？
         # 认证后他们将被传送回正常位置。
+        # Ringeal007 注释：不要与 FastLogin 一起使用！
         teleportUnAuthedToSpawn: false
         # 未注册的玩家可以走动吗？
         allowMovement: false
         # 多少秒后应踢出未能登录或注册的玩家？设置为 0 以禁用。
-        timeout: 30
+        timeout: 60
         # 玩家名称中允许的字符的正则表达式模式。
         allowedNicknameCharacters: '[a-zA-Z0-9_]*'
         # 未注册玩家可以走多远？
@@ -232,9 +233,9 @@ settings:
         UnrestrictedInventories: []
     security:
         # 密码的最小长度
-        minPasswordLength: 5
+        minPasswordLength: 6
         # 密码的最大长度
-        passwordMaxLength: 30
+        passwordMaxLength: 128
         # 可能的值：SHA256, BCRYPT, BCRYPT2Y, PBKDF2, SALTEDSHA512,
         # MYBB, IPB3, PHPBB, PHPFUSION, SMF, XENFORO, XAUTH, JOOMLA, WBB3, WBB4, MD5VB,
         # PBKDF2DJANGO, WORDPRESS, ROYALAUTH, ARGON2, CUSTOM（仅限开发人员）。完整列表见
@@ -258,19 +259,17 @@ settings:
         # - 'password'
         # - 'help'
         unsafePasswords: 
-        - '123456'
         - password
         - qwerty
         - '12345'
         - '54321'
-        - '123456789'
         - help
     registration:
         # 服务器上启用注册吗？
         enabled: true
         # 每隔 X 秒发送一条消息给玩家，
         # 提醒他们需要登录/注册
-        messageInterval: 5
+        messageInterval: 2
         # 只有已注册并登录的玩家才能游玩。
         # 请参阅限制了解例外情况
         force: true
@@ -288,6 +287,7 @@ settings:
         # 不要与下面的登录功能一起使用
         forceKickAfterRegister: false
         # AuthMe 是否需要在成功注册后强制执行 /login？
+        # Ringeal007 注释：不要与 FastLogin 一起使用！
         forceLoginAfterRegister: false
     # 启用后，在登录后显示欢迎消息（welcome.txt）
     # 你可以在 welcome.txt 中使用颜色 + 一些替换字符串：
@@ -297,7 +297,7 @@ settings:
     # {VERSION}: 获取当前的 bukkit 版本，{COUNTRY}: 玩家国家
     # {DISPLAYNAME}: 玩家显示名称（带颜色）
     # {DISPLAYNAMENOCOLOR}: 玩家显示名称（无颜色）
-    useWelcomeMessage: true
+    useWelcomeMessage: false
     # 将欢迎消息广播到服务器还是仅播放给玩家？
     # 设置 true 为服务器，false 为玩家
     broadcastWelcomeMessage: false
@@ -311,13 +311,13 @@ settings:
     # {DISPLAYNAMENOCOLOR}: 玩家显示名称（无颜色）
     customJoinMessage: ''
     # 我们是否应移除未登录用户的退出消息？
-    removeUnloggedLeaveMessage: false
+    removeUnloggedLeaveMessage: true
     # 我们是否应移除所有加入消息？
     removeJoinMessage: false
     # 我们是否应移除所有退出消息？
     removeLeaveMessage: false
     # 我们是否需要在登录/注册前添加致盲药水效果？
-    applyBlindEffect: false
+    applyBlindEffect: true
     # 我们是否需要防止使用其他大小写登录？
     # 如果 Xephi 已注册，那么 Xephi 可以登录，但 XEPHI/xephi/XePhI 不行
     preventOtherCase: true
@@ -535,7 +535,7 @@ limbo:
     restoreWalkSpeed: RESTORE_NO_ZERO
 BackupSystem:
     # 备份的一般配置：如果为 false，则无法进行备份
-    ActivateBackup: false
+    ActivateBackup: true
     # 在服务器启动时创建备份
     OnServerStart: false
     # 在服务器停止时创建备份
