@@ -1,0 +1,15 @@
+# Thousands Minigames
+# Instance_Worlds_Importer 配置
+# 相对路径相对于本 TOML 文件所在目录解析。
+
+# 压缩包所在目录。目录路径。
+archive_dir = "..\\..\\_worlds_archives\\"
+
+# 世界根目录。目录路径。
+world_dir = "..\\..\\worlds\\"
+
+# 备份目录。目录路径。
+backup_dir = "..\\..\\worlds\\_backups\\"
+
+# 版本映射文件。文件路径。
+version_map = ".\\Version_Map.toml"
