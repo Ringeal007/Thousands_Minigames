@@ -1,0 +1,8 @@
+settings:
+  time-command-affects-all-worlds: true
+  suggest-player-names-when-null-tab-completions: false
+world-settings:
+  default:
+    allow-player-cramming-damage: true
+    filter-nbt-data-from-spawn-eggs-and-related: false
+    use-vanilla-world-scoreboard-name-coloring: false

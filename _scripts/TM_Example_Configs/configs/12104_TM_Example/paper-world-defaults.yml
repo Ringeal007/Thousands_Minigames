@@ -1,0 +1,14 @@
+collisions: 
+  allow-player-cramming-damage: true
+entities: 
+  behavior: 
+    cooldown-failed-beehive-releases: false
+    only-merge-items-horizontally: true
+  spawning: 
+    filter-bad-tile-entity-nbt-from-falling-blocks: false
+    filtered-entity-tag-nbt-paths: []
+    per-player-mob-spawns: false
+misc: 
+  allow-remote-ender-dragon-respawning: true
+scoreboards: 
+  use-vanilla-world-scoreboard-name-coloring: true
