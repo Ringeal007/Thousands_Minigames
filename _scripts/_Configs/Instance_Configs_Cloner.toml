@@ -1,18 +1,18 @@
 # Thousands Minigames
 # Instance_Configs_Cloner 配置
-# 相对路径相对于本 TOML 文件所在目录解析。
+# 相对路径相对于脚本所在目录解析。
 
 # 模板配置根目录。目录路径。
-template_root = "..\\TM_Example_Configs\\configs\\"
+template_root = ".\\TM_Example_Configs\\configs\\"
 
 # 实例配置根目录。目录路径。
-configs_root = "..\\..\\configs\\"
+configs_root = "..\\configs\\"
 
 # 世界根目录。目录路径。
-worlds_root = "..\\..\\worlds\\"
+worlds_root = "..\\worlds\\"
 
 # 版本映射文件。文件路径。
-version_map = ".\\Version_Map.toml"
+version_map = ".\\_Configs\\Version_Map.toml"
 
 # 目标实例名。留空表示未设置。
 instance_name = ""
