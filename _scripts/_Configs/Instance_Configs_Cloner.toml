@@ -20,6 +20,9 @@ instance_name = ""
 # 模板名。留空表示未设置。
 template_name = ""
 
+# 每个实例最大备份保留数量。0 表示不限制。
+max_backups = 0
+
 [interactive]
 # 是否在交互模式开始时显示当前环境配置。
 show_paths = true

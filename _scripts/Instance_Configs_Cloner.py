@@ -70,6 +70,7 @@ TOML_ALLOWED_TOP_KEYS = {
     "instance_name",
     "template_name",
     "interactive",
+    "max_backups",
 }
 
 TOML_ALLOWED_INTERACTIVE_KEYS = {
@@ -411,6 +412,65 @@ def make_relative_file(target_file, base_dir):
     return rel
 
 
+def _count_items(dir_path):
+    dir_no = dir_path.rstrip("\\")
+    if not os.path.isdir(dir_no):
+        return 0
+    count = 0
+    try:
+        for root, dirs, files in os.walk(dir_no):
+            count += len(dirs) + len(files)
+    except OSError:
+        pass
+    return count
+
+
+def _write_backup_info(backup_path, instance_name, source_dir, target_dir, template_name):
+    info_path = ntpath.join(backup_path.rstrip("\\"), "_backup_info.txt")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = [
+        f"backup_time = {timestamp}",
+        f"instance_name = {instance_name}",
+        f"template_name = {template_name}",
+        f"source_dir = {source_dir}",
+        f"target_dir = {target_dir}",
+        f"backup_path = {backup_path}",
+        f"script = {SCRIPT_NAME}",
+    ]
+    try:
+        with open(info_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError:
+        pass
+
+
+def _cleanup_old_backups(backup_root, instance_name, max_backups):
+    if max_backups <= 0:
+        return
+    backup_root_no = backup_root.rstrip("\\")
+    if not os.path.isdir(backup_root_no):
+        return
+    prefix = f"{instance_name}.bak."
+    try:
+        entries = [
+            e.name for e in os.scandir(backup_root_no)
+            if e.is_dir(follow_symlinks=False) and e.name.startswith(prefix)
+        ]
+    except OSError:
+        return
+    entries.sort()
+    if len(entries) <= max_backups:
+        return
+    to_remove = entries[:len(entries) - max_backups]
+    for name in to_remove:
+        full_path = ntpath.join(backup_root_no, name)
+        try:
+            shutil.rmtree(full_path, onerror=_on_rm_error)
+            oprint(f"[INFO] 已清理过期备份: {name}")
+        except Exception:
+            oprint(f"[WARN] 无法清理过期备份: {name}")
+
+
 def create_default_config_atomic(config_path):
     config_path = os.path.abspath(config_path)
     config_dir = os.path.dirname(config_path)
@@ -447,6 +507,9 @@ def create_default_config_atomic(config_path):
         "\n"
         "# 模板名。留空表示未设置。\n"
         'template_name = ""\n'
+        "\n"
+        "# 每个实例最大备份保留数量。0 表示不限制。\n"
+        "max_backups = 0\n"
         "\n"
         "[interactive]\n"
         "# 是否在交互模式开始时显示当前环境配置。\n"
@@ -518,6 +581,15 @@ def load_toml_file(path):
             if not isinstance(value, str):
                 raise ScriptError(f"错误：TOML 字段 {key} 必须是字符串。\n文件：{path}")
             result[key] = value.strip()
+    if "max_backups" in data:
+        value = data["max_backups"]
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ScriptError(f"错误：TOML 字段 max_backups 必须是整数。\n文件：{path}")
+        if value < 0:
+            raise ScriptError(f"错误：TOML 字段 max_backups 不能为负数。\n文件：{path}")
+        result["max_backups"] = value
+    else:
+        result["max_backups"] = 0
     if "interactive" in data:
         inter_data = data["interactive"]
         if not isinstance(inter_data, dict):
@@ -825,7 +897,7 @@ def copy_contents(source_dir, target_dir):
             raise RuntimeScriptError(f"错误：复制失败。\n源：{src}\n目标：{dst}\n详情：{exc}")
 
 
-def create_backup(target_dir, instance_name, configs_root, source_dir, template_root):
+def create_backup(target_dir, instance_name, configs_root, source_dir, template_root, template_name):
     backup_root = normalize_path(ntpath.join(configs_root, "backups"), "dir", configs_root)
     if is_within(backup_root, source_dir):
         raise RuntimeScriptError(f"错误：备份目录不得位于源目录内部。\n备份根目录：{backup_root}")
@@ -834,15 +906,18 @@ def create_backup(target_dir, instance_name, configs_root, source_dir, template_
     if template_root and is_within(backup_root, template_root):
         raise RuntimeScriptError(f"错误：备份目录不得位于模板根目录内部。\n备份根目录：{backup_root}")
 
-    candidate_name = instance_name
-    if os.path.exists(ntpath.join(backup_root, candidate_name)):
-        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        base_name = f"{instance_name}.bak.{timestamp}"
-        candidate_name = base_name
-        counter = 1
-        while os.path.exists(ntpath.join(backup_root, candidate_name)):
-            candidate_name = f"{base_name}-{counter:03d}"
-            counter += 1
+    try:
+        os.makedirs(backup_root.rstrip("\\"), exist_ok=True)
+    except OSError as exc:
+        raise RuntimeScriptError(f"错误：无法创建备份根目录：{backup_root}\n详情：{exc}")
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    base_name = f"{instance_name}.bak.{timestamp}"
+    candidate_name = base_name
+    counter = 1
+    while os.path.exists(ntpath.join(backup_root.rstrip("\\"), candidate_name)):
+        candidate_name = f"{base_name}-{counter:03d}"
+        counter += 1
 
     backup_path = normalize_path(ntpath.join(backup_root, candidate_name), "dir", backup_root)
 
@@ -857,28 +932,36 @@ def create_backup(target_dir, instance_name, configs_root, source_dir, template_
     if template_root and is_within(backup_path, template_root):
         raise RuntimeScriptError(f"错误：备份目录不得位于模板根目录内部。\n备份目录：{backup_path}")
 
+    if os.path.exists(backup_path.rstrip("\\")):
+        counter = 1
+        while os.path.exists(backup_path.rstrip("\\")):
+            candidate_name = f"{base_name}-{counter:03d}"
+            counter += 1
+            backup_path = normalize_path(ntpath.join(backup_root, candidate_name), "dir", backup_root)
+
     oprint("")
     oprint(f"[INFO] 目标目录非空，正在备份到：{backup_path}")
     oprint("")
-
-    try:
-        os.makedirs(backup_root, exist_ok=True)
-    except OSError as exc:
-        raise RuntimeScriptError(f"错误：无法创建备份根目录：{backup_root}\n详情：{exc}")
 
     try:
         shutil.move(target_dir.rstrip("\\"), backup_path.rstrip("\\"))
     except Exception as exc:
         raise RuntimeScriptError(f"错误：备份目标目录失败。\n目标目录：{target_dir}\n备份目录：{backup_path}\n详情：{exc}")
 
+    _write_backup_info(backup_path, instance_name, source_dir, target_dir, template_name)
+
+    item_count = _count_items(backup_path)
+    oprint(f"[INFO] 备份完成，包含 {item_count} 个文件/目录。")
+    oprint("")
+
     return backup_path
 
 
-def perform_copy(source_dir, target_dir, instance_name, target_existed, target_nonempty, configs_root, template_root):
+def perform_copy(source_dir, target_dir, instance_name, target_existed, target_nonempty, configs_root, template_root, template_name, max_backups):
     backup_path = None
     try:
         if target_existed and target_nonempty:
-            backup_path = create_backup(target_dir, instance_name, configs_root, source_dir, template_root)
+            backup_path = create_backup(target_dir, instance_name, configs_root, source_dir, template_root, template_name)
         copy_contents(source_dir, target_dir)
     except Exception as exc:
         if backup_path is not None:
@@ -891,6 +974,8 @@ def perform_copy(source_dir, target_dir, instance_name, target_existed, target_n
                 shutil.move(backup_path.rstrip("\\"), target_dir.rstrip("\\"))
             except Exception:
                 raise RuntimeScriptError(f"错误：复制失败且恢复备份失败。\n备份保留：{backup_path}")
+            if not os.path.isdir(target_dir.rstrip("\\")):
+                raise RuntimeScriptError(f"错误：恢复备份后目标目录不存在。\n备份保留：{backup_path}")
             raise RuntimeScriptError(f"错误：复制失败，已恢复原目标目录。\n原错误：{exc}")
         try:
             if not target_existed:
@@ -909,7 +994,13 @@ def perform_copy(source_dir, target_dir, instance_name, target_existed, target_n
     oprint("[INFO] 复制完成。")
     oprint(f"源目录: {source_dir}")
     oprint(f"目标目录: {target_dir}")
+    if backup_path is not None:
+        oprint(f"备份位置: {backup_path}")
     oprint("")
+
+    if backup_path is not None and max_backups > 0:
+        backup_root = normalize_path(ntpath.join(configs_root, "backups"), "dir", configs_root)
+        _cleanup_old_backups(backup_root, instance_name, max_backups)
 
 
 def run(argv):
@@ -997,6 +1088,8 @@ def run(argv):
 
         global VERSION_MAP
         VERSION_MAP = load_version_map(version_map_path)
+
+        max_backups = toml_config.get("max_backups", 0)
 
         top_instance_raw = toml_config.get("instance_name", "")
         top_template_raw = toml_config.get("template_name", "")
@@ -1118,7 +1211,7 @@ def run(argv):
             if target_existed and target_nonempty:
                 authorize_nonempty_target(target_dir, args.overwrite, no_input, interactive_mode)
 
-        perform_copy(source_dir, target_dir, final_instance, target_existed, target_nonempty, configs_root, template_root)
+        perform_copy(source_dir, target_dir, final_instance, target_existed, target_nonempty, configs_root, template_root, final_template, max_backups)
         return EXIT_SUCCESS, no_input
 
     except UserCancel as exc:
