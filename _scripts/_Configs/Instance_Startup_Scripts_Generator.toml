@@ -1,18 +1,18 @@
 # Thousands Minigames
 # Instance_Startup_Scripts_Generator 配置
-# 相对路径相对于本 TOML 文件所在目录解析。
+# 相对路径相对于脚本所在目录解析。
 
 # 启动脚本输出目录。目录路径。
-output_dir = "..\\..\\_startup_scripts_legacy\\"
+output_dir = "..\\_startup_scripts_legacy\\"
 
 # 实例配置根目录。目录路径。
-configs_root = "..\\..\\configs\\"
+configs_root = "..\\configs\\"
 
 # 世界根目录。目录路径。
-worlds_root = "..\\..\\worlds\\"
+worlds_root = "..\\worlds\\"
 
 # 版本映射文件。文件路径。
-version_map = ".\\Version_Map.toml"
+version_map = ".\\_Configs\\Version_Map.toml"
 
 # Java 运行时路径。原样嵌入 .bat 。
 java_runtime = ".\\runtimes\\zulu-25\\bin\\java.exe"
@@ -24,4 +24,4 @@ xms = "6144M"
 xmx = "6144M"
 
 # 启动脚本备份目录。目录路径。
-backup_dir = "..\\..\\_startup_scripts_legacy\\_backups\\"
+backup_dir = "..\\_startup_scripts_legacy\\_backups\\"

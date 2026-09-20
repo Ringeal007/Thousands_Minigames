@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
 Instance_Startup_Scripts_Generator
-
 用于根据 Thousands Minigames 实例目录生成 Paper 服务端启动脚本。
 """
 
@@ -19,7 +17,6 @@ try:
     import tomllib
 except ImportError:
     tomllib = None
-
 
 EXIT_SUCCESS = 0
 EXIT_CANCEL = 1
@@ -40,7 +37,6 @@ if not BASE_DIR.endswith("\\"):
 
 CONFIG_DIR_NAME = "_Configs"
 CONFIG_DIR = os.path.join(SCRIPT_DIR, CONFIG_DIR_NAME) + "\\"
-
 DEFAULT_CONFIG_PATH = CONFIG_DIR + CONFIG_FILE_NAME
 DEFAULT_VERSION_MAP = CONFIG_DIR + VERSION_MAP_FILE_NAME
 
@@ -126,55 +122,54 @@ Instance_Startup_Scripts_Generator
 
 参数：
   --help, -h, -H, -?, -help
-      显示帮助信息并退出。
+    显示帮助信息并退出。
 
   --create-config
-      将默认配置文件写入磁盘后退出，不执行后续业务流程。
+    将默认配置文件写入磁盘后退出，不执行后续业务流程。
 
   --config, -c
-      TOML 配置文件。
+    TOML 配置文件。
 
   --instance, -i
-      目标实例名。
+    目标实例名。
 
   --output-dir
-      启动脚本输出目录。
+    启动脚本输出目录。
 
   --configs-root
-      实例配置根目录。
+    实例配置根目录。
 
   --worlds-root
-      世界根目录。
+    世界根目录。
 
   --version-map
-      版本映射文件。
+    版本映射文件。
 
   --java-runtime
-      Java 运行时路径，原样嵌入 .bat 。
+    Java 运行时路径，原样嵌入 .bat 。
 
   --xms
-      JVM 初始内存。
+    JVM 初始内存。
 
   --xmx
-      JVM 最大内存。
+    JVM 最大内存。
 
   --backup-dir
-      启动脚本备份目录。
+    启动脚本备份目录。
 
   --overwrite
-      目标 .bat 已存在时备份后覆盖。
+    目标 .bat 已存在时备份后覆盖。
 
   --no-input
-      强制非交互模式。
+    强制非交互模式。
 
 配置文件：
   默认配置文件：
-      {脚本所在目录}\_Configs\Instance_Startup_Scripts_Generator.toml
+    {脚本所在目录}\_Configs\Instance_Startup_Scripts_Generator.toml
 
   默认配置文件可能尚未写入磁盘。
   未写入磁盘不代表配置不存在。
   脚本会使用完整内置默认配置继续运行。
-
   使用 --create-config 可将默认配置文件写入磁盘。
 
 危险操作确认：
@@ -251,20 +246,15 @@ def print_help():
 def normalize_raw_path(raw, path_type, param_name):
     if raw is None:
         return None
-
     if not isinstance(raw, str):
         raise ScriptError(f"参数错误：{param_name} 必须是字符串。")
-
     text = raw.strip()
     if not text:
         raise ScriptError(f"参数错误：{param_name} 不能为空。")
-
     if len(text) >= 2 and text[0] == text[-1] and text[0] in ("\"", "'"):
         text = text[1:-1]
-
     text = text.replace("/", "\\")
     trailing = text.endswith("\\")
-
     if path_type == "file" and trailing:
         raise ScriptError(
             f"参数类型冲突：{param_name} 期望文件路径，但输入以路径分隔符结尾。\n"
@@ -272,10 +262,8 @@ def normalize_raw_path(raw, path_type, param_name):
             "说明：末尾带路径分隔符的路径必须视为文件夹。\n"
             "请移除末尾分隔符，或改用目录型参数。"
         )
-
     if path_type not in ("file", "dir"):
         raise ScriptError(f"错误：内部路径类型不合法：{path_type}")
-
     return text
 
 
@@ -283,51 +271,39 @@ def resolve_path(raw, path_type, base_dir, param_name):
     text = normalize_raw_path(raw, path_type, param_name)
     if text is None:
         return None
-
     base = base_dir if base_dir else os.getcwd()
     if not ntpath.isabs(base):
         base = os.path.abspath(base)
-
     if not ntpath.isabs(text):
         text = ntpath.join(base, text)
-
     norm = ntpath.normpath(text)
-
     if not ntpath.isabs(norm):
         norm = ntpath.abspath(norm)
-
     if path_type == "dir":
         if not norm.endswith("\\"):
             norm += "\\"
     else:
         norm = norm.rstrip("\\")
-
     return norm
 
 
 def normalize_embedded_runtime(raw, param_name="--java-runtime"):
     if raw is None:
         return None
-
     if not isinstance(raw, str):
         raise ScriptError(f"参数错误：{param_name} 必须是字符串。")
-
     text = raw.strip()
     if not text:
         raise ScriptError(f"参数错误：{param_name} 不能为空。")
-
     if len(text) >= 2 and text[0] == text[-1] and text[0] in ("\"", "'"):
         text = text[1:-1]
-
     text = text.replace("/", "\\")
-
     if text.endswith("\\"):
         raise ScriptError(
             f"参数类型冲突：{param_name} 期望文件路径，但输入以路径分隔符结尾。\n"
             f"输入：{raw}\n"
             "说明：末尾带路径分隔符的路径必须视为文件夹。"
         )
-
     return text
 
 
@@ -344,98 +320,75 @@ def escape_toml(value):
 def backup_file(path):
     if not os.path.exists(path):
         raise RuntimeScriptError(f"错误：备份失败，文件不存在：{path}")
-
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_path = f"{path}.bak.{timestamp}"
-
     counter = 1
     original_backup_path = backup_path
-
     while os.path.exists(backup_path):
         backup_path = f"{original_backup_path}-{counter:03d}"
         counter += 1
-
     try:
         shutil.copy2(path, backup_path)
     except Exception as exc:
         raise RuntimeScriptError(f"错误：备份文件失败。\n原文件：{path}\n备份文件：{backup_path}\n详情：{exc}")
-
     return backup_path
 
 
 def write_toml_atomic(path, content):
     tmp = path + ".tmp"
-
     try:
         with open(tmp, "w", encoding="utf-8", newline="\n") as f:
             f.write(content)
-
         with open(tmp, "rb") as f:
             tomllib.load(f)
-
         if os.path.exists(path):
             backup_path = backup_file(path)
             oprint(f"[INFO] 已备份原配置文件: \"{backup_path}\"")
-
         os.replace(tmp, path)
-
     except Exception as exc:
         if os.path.exists(tmp):
             try:
                 os.remove(tmp)
             except OSError:
                 pass
-
         raise RuntimeScriptError(f"错误：写入 TOML 配置文件失败：{path}\n详情：{exc}")
 
 
-def make_relative_dir(target_dir, config_dir):
+def make_relative_dir(target_dir, base_dir):
     target = target_dir.rstrip("\\")
-
     try:
-        rel = os.path.relpath(target, config_dir)
+        rel = os.path.relpath(target, base_dir)
     except ValueError:
         rel = target_dir
-
     rel = rel.replace("/", "\\")
-
     if rel == ".":
         rel = ".\\"
-
     if not ntpath.isabs(rel):
         if not rel.startswith(".\\") and not rel.startswith("..\\"):
             rel = ".\\" + rel
-
     if not rel.endswith("\\"):
         rel += "\\"
-
     return rel
 
 
-def make_relative_file(target_file, config_dir):
+def make_relative_file(target_file, base_dir):
     target = target_file.rstrip("\\")
-
     try:
-        rel = os.path.relpath(target, config_dir)
+        rel = os.path.relpath(target, base_dir)
     except ValueError:
         rel = target_file
-
     rel = rel.replace("/", "\\")
-
     if rel == ".":
         rel = ".\\"
-
     if not ntpath.isabs(rel):
         if not rel.startswith(".\\") and not rel.startswith("..\\"):
             rel = ".\\" + rel
-
     return rel
 
 
 def create_default_config(config_path):
     config_path = os.path.abspath(config_path)
     config_dir = os.path.dirname(config_path)
-
     if config_dir:
         try:
             os.makedirs(config_dir, exist_ok=True)
@@ -445,19 +398,19 @@ def create_default_config(config_path):
     lines = [
         "# Thousands Minigames",
         "# Instance_Startup_Scripts_Generator 配置",
-        "# 相对路径相对于本 TOML 文件所在目录解析。",
+        "# 相对路径相对于脚本所在目录解析。",
         "",
         "# 启动脚本输出目录。目录路径。",
-        f'output_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["output_dir"], config_dir))}"',
+        f'output_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["output_dir"], SCRIPT_DIR))}"',
         "",
         "# 实例配置根目录。目录路径。",
-        f'configs_root = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["configs_root"], config_dir))}"',
+        f'configs_root = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["configs_root"], SCRIPT_DIR))}"',
         "",
         "# 世界根目录。目录路径。",
-        f'worlds_root = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["worlds_root"], config_dir))}"',
+        f'worlds_root = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["worlds_root"], SCRIPT_DIR))}"',
         "",
         "# 版本映射文件。文件路径。",
-        f'version_map = "{escape_toml(make_relative_file(BUILTIN_CONFIG["version_map"], config_dir))}"',
+        f'version_map = "{escape_toml(make_relative_file(BUILTIN_CONFIG["version_map"], SCRIPT_DIR))}"',
         "",
         "# Java 运行时路径。原样嵌入 .bat 。",
         f'java_runtime = "{escape_toml(BUILTIN_CONFIG["java_runtime"])}"',
@@ -469,36 +422,29 @@ def create_default_config(config_path):
         f'xmx = "{escape_toml(BUILTIN_CONFIG["xmx"])}"',
         "",
         "# 启动脚本备份目录。目录路径。",
-        f'backup_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["backup_dir"], config_dir))}"',
+        f'backup_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["backup_dir"], SCRIPT_DIR))}"',
     ]
-
     write_toml_atomic(config_path, "\n".join(lines) + "\n")
 
 
 def load_config_file(path):
     if tomllib is None:
         raise ScriptError("错误：无法使用 tomllib 。\n原因：需要 Python 3.11 或更高版本。")
-
     if not os.path.isfile(path):
         raise ScriptError(f"错误：TOML 配置文件不存在：{path}")
-
     try:
         with open(path, "rb") as f:
             data = tomllib.load(f)
     except Exception as exc:
         raise ScriptError(f"错误：TOML 配置文件解析失败：{path}\n详情：{exc}")
-
     if not isinstance(data, dict):
         raise ScriptError(f"错误：TOML 配置文件顶层必须是键值表：{path}")
-
     unknown_keys = sorted(set(data.keys()) - TOML_ALLOWED_CONFIG_KEYS)
     if unknown_keys:
         raise ScriptError(f"错误：TOML 配置中存在未知字段：{', '.join(unknown_keys)}\n文件：{path}")
-
     for key in TOML_ALLOWED_CONFIG_KEYS:
         if key in data and not isinstance(data[key], str):
             raise ScriptError(f"错误：TOML 配置字段 {key} 必须是字符串。\n文件：{path}")
-
     return data
 
 
@@ -508,18 +454,14 @@ def load_version_map(path):
             f"错误：版本映射文件不存在：{path}\n"
             "请检查 Version_Map.toml 路径，或使用 --version-map / TOML 字段 version_map 指定正确文件。"
         )
-
     try:
         with open(path, "rb") as f:
             data = tomllib.load(f)
     except Exception as exc:
         raise ScriptError(f"错误：Version_Map.toml 解析失败：{path}\n详情：{exc}")
-
     if not isinstance(data, dict):
         raise ScriptError(f"错误：Version_Map.toml 顶层必须是键值表：{path}")
-
     result = {}
-
     for code, mc_version in data.items():
         if not isinstance(code, str) or not VERSION_CODE_RE.fullmatch(code):
             raise ScriptError(
@@ -527,37 +469,29 @@ def load_version_map(path):
                 "版本代码必须是 5 位数字。\n"
                 f"文件：{path}"
             )
-
         if code == "00000":
             raise ScriptError(f"错误：Version_Map.toml 不允许包含版本代码 00000 。\n文件：{path}")
-
         if not isinstance(mc_version, str) or not mc_version.strip():
             raise ScriptError(
                 f"错误：Version_Map.toml 版本代码 {code} 对应的值必须是非空字符串。\n文件：{path}"
             )
-
         result[code] = mc_version.strip()
-
     if not result:
         raise ScriptError(f"错误：Version_Map.toml 中没有有效的版本映射。\n文件：{path}")
-
     return result
 
 
 def validate_instance_name(name, version_map):
     if not isinstance(name, str):
         raise ScriptError("错误：实例名必须是字符串。")
-
     value = name.strip()
     if not value:
         raise ScriptError("错误：实例名不能为空。")
-
     if not value.isascii():
         raise ScriptError(
             f"错误：实例名包含非 ASCII 字符：{value}\n"
             "仅允许 ASCII 字母、数字、下划线 _ 、连字符 - 。"
         )
-
     if not INSTANCE_NAME_RE.fullmatch(value):
         raise ScriptError(
             f"错误：实例名格式不合法：{value}\n"
@@ -565,7 +499,6 @@ def validate_instance_name(name, version_map):
             "名称仅允许 ASCII 字母、数字、下划线 _ 、连字符 - 。\n"
             "合法示例：10808_Bed_Wars、12111_Cool_Parkour、26012_Murder_Mystery"
         )
-
     code = value[:5]
     if code not in version_map:
         raise ScriptError(
@@ -573,34 +506,26 @@ def validate_instance_name(name, version_map):
             f"实例名：{value}\n"
             "请检查版本代码是否来自 Version_Map.toml 。"
         )
-
     return code
 
 
 def clean_instance_name(raw):
     if raw is None:
         return None
-
     name = raw.strip()
-
     if len(name) >= 2 and name[0] == name[-1] and name[0] in ("\"", "'"):
         name = name[1:-1]
-
     if name.lower().endswith(".bat"):
         name = name[:-4]
-
     name = name.strip()
-
     if "/" in name or "\\" in name:
         raise ScriptError(f"错误：--instance 只能是实例名，不能包含路径分隔符。\n输入：{raw}")
-
     return name
 
 
 def parse_version(version_str):
     if not isinstance(version_str, str) or not version_str.strip():
         raise ScriptError(f"错误：版本号必须是非空字符串：{version_str}")
-
     try:
         return tuple(int(part) for part in version_str.strip().split("."))
     except Exception:
@@ -609,49 +534,39 @@ def parse_version(version_str):
 
 def list_instances(worlds_root, version_map):
     worlds_no = worlds_root.rstrip("\\")
-
     if not os.path.isdir(worlds_no):
         return []
-
     try:
         entries = os.scandir(worlds_no)
     except OSError as exc:
         raise ScriptError(f"错误：无法读取世界目录：{worlds_root}\n详情：{exc}")
-
     names = []
-
     with entries:
         for entry in entries:
             if entry.name.startswith("_"):
                 continue
-
             if not entry.is_dir(follow_symlinks=False):
                 continue
-
             try:
                 validate_instance_name(entry.name, version_map)
                 names.append(entry.name)
             except ScriptError:
                 continue
-
     return sorted(names)
 
 
 def interactive_select(worlds_root, version_map):
     while True:
         instances = list_instances(worlds_root, version_map)
-
         if instances:
             oprint("")
             oprint("=== 可选择的实例列表 ===")
             for idx, name in enumerate(instances, 1):
                 oprint(f"{idx}. {name}")
-
             oprint("")
             oprint("可用操作：输入序号选择，或直接输入实例名。")
             oprint("可用控制：输入 r 重新搜索，输入 c 取消。")
             oprint("")
-
             prompt = "请输入序号或实例名: "
         else:
             oprint("")
@@ -660,56 +575,41 @@ def interactive_select(worlds_root, version_map):
             oprint("")
             oprint("可用控制：输入 r 重新搜索，输入 c 取消。")
             oprint("")
-
             prompt = "请输入实例名: "
-
         while True:
             try:
                 raw = input(prompt).strip()
             except EOFError:
                 raise UserCancel()
-
             if not raw:
                 oprint("[WARN] 输入不能为空，请重新输入。")
                 continue
-
             low = raw.lower()
-
             if low in ("c", "cancel"):
                 raise UserCancel()
-
             if low in ("r", "rescan", "refresh"):
                 break
-
             if low.endswith(".bat"):
                 raw = raw[:-4]
-
             if raw.isdigit() and instances:
                 idx = int(raw)
-
                 if 1 <= idx <= len(instances):
                     return instances[idx - 1]
-
                 oprint(f"[WARN] 序号超出范围 (1-{len(instances)}) 。")
                 continue
-
             instance = raw
-
             try:
                 validate_instance_name(instance, version_map)
             except ScriptError as exc:
                 oprint(exc.message)
                 oprint("")
                 continue
-
             if instance in instances:
                 return instance
-
             oprint("")
             oprint(f"[WARN] 未在 {worlds_root} 中找到实例目录：{instance}")
             oprint("       将继续使用该实例名生成启动脚本。")
             oprint("")
-
             return instance
 
 
@@ -717,80 +617,64 @@ def confirm_overwrite(target_path):
     oprint("")
     oprint(f"[WARNING] 目标启动脚本已存在: \"{target_path}\"")
     oprint("继续执行将备份现有文件并覆盖。")
-
     try:
         answer = input("是否继续？[y/N] ").strip().lower()
     except EOFError:
         return False
-
     return answer in ("y", "yes")
 
 
 def backup_bat(src, backup_dir):
     backup_dir_no = backup_dir.rstrip("\\")
-
     try:
         os.makedirs(backup_dir_no, exist_ok=True)
     except OSError as exc:
         raise RuntimeScriptError(f"错误：无法创建备份目录：{backup_dir}\n详情：{exc}")
-
     fn = os.path.basename(src)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_path = os.path.join(backup_dir_no, f"{fn}.bak.{timestamp}")
-
     counter = 1
     original_backup_path = backup_path
-
     while os.path.exists(backup_path):
         backup_path = f"{original_backup_path}-{counter:03d}"
         counter += 1
-
     try:
         shutil.copy2(src, backup_path)
     except Exception as exc:
         raise RuntimeScriptError(f"错误：备份启动脚本失败。\n原文件：{src}\n备份文件：{backup_path}\n详情：{exc}")
-
     return backup_path
 
 
 def generate_bat(instance_name, mc_version, java_runtime, xms, xmx):
     vt = parse_version(mc_version)
     paper_jar = f"paper-{mc_version}.jar"
-
     lines = []
     lines.append("@echo off")
     lines.append("chcp 65001 >nul")
     lines.append('cd /d "%~dp0.."')
     lines.append(f"title {instance_name}")
     lines.append(f'if not exist ".\\configs\\{instance_name}\\" mkdir ".\\configs\\{instance_name}\\"')
-
     p = []
     p.append(f'"{java_runtime}"')
     p.append(f"-Xms{xms}")
     p.append(f"-Xmx{xmx}")
     p.extend(JVM_ARGS)
     p.append(f'-jar ".\\{paper_jar}"')
-
     if vt >= NOGUI_MIN_VERSION:
         p.append("--nogui")
-
     p.append("--world-dir worlds")
     p.append("--plugins plugins")
     p.append(f"--config configs\\{instance_name}\\server.properties")
     p.append(f"--commands-settings configs\\{instance_name}\\commands.yml")
     p.append(f"--bukkit-settings configs\\{instance_name}\\bukkit.yml")
     p.append(f"--spigot-settings configs\\{instance_name}\\spigot.yml")
-
     if vt >= PAPER_SETTINGS_DIR_MIN_VERSION:
         p.append(f"--paper-settings-directory configs\\{instance_name}\\")
     else:
         p.append(f"--paper-settings configs\\{instance_name}\\paper.yml")
-
     p.append(f"--level-name {instance_name}")
-
     lines.append(" ".join(p))
     lines.append("pause")
-
     return "\r\n".join(lines) + "\r\n"
 
 
@@ -800,7 +684,6 @@ def build_parser():
         add_help=False,
         description="Thousands Minigames 实例启动脚本生成工具",
     )
-
     parser.add_argument("--config", "-c", dest="config", metavar="FILE", default=None, help="TOML 配置文件")
     parser.add_argument("--create-config", dest="create_config", action="store_true", default=False, help="将默认配置文件写入磁盘后退出")
     parser.add_argument("--instance", "-i", dest="instance", metavar="NAME", default=None, help="目标实例名")
@@ -814,7 +697,6 @@ def build_parser():
     parser.add_argument("--backup-dir", dest="backup_dir", metavar="DIR", default=None, help="启动脚本备份目录")
     parser.add_argument("--overwrite", dest="overwrite", action="store_true", default=False, help="目标已存在时备份后覆盖")
     parser.add_argument("--no-input", dest="no_input", action="store_true", default=False, help="强制非交互模式")
-
     return parser
 
 
@@ -839,7 +721,6 @@ def run(argv):
         return EXIT_CONFIG_ERROR, False
 
     parser = build_parser()
-
     try:
         args = parser.parse_args(argv)
     except ScriptError as exc:
@@ -856,16 +737,13 @@ def run(argv):
                 target_config = resolve_path(args.config, "file", os.getcwd(), "--config")
             else:
                 target_config = DEFAULT_CONFIG_PATH
-
             if os.path.exists(target_config):
                 if not os.path.isfile(target_config):
                     raise ScriptError(f"错误：配置文件路径存在但不是文件：{target_config}")
-
                 oprint(f"[INFO] 配置文件已存在，未写入磁盘: \"{target_config}\"")
             else:
                 create_default_config(target_config)
                 oprint(f"[INFO] 已将默认配置写入磁盘: \"{target_config}\"")
-
             return EXIT_SUCCESS, no_input
 
         builtin = {
@@ -881,7 +759,6 @@ def run(argv):
 
         if args.config is not None:
             config_file = resolve_path(args.config, "file", os.getcwd(), "--config")
-
             if not os.path.exists(config_file):
                 raise ScriptError(
                     f"错误：TOML 配置文件不存在：{config_file}\n"
@@ -889,12 +766,10 @@ def run(argv):
                     "如果只是想使用默认内置配置，请不要提供 --config 。\n"
                     "如果想将默认配置写入磁盘，请使用 --create-config 。"
                 )
-
             if not os.path.isfile(config_file):
                 raise ScriptError(f"错误：TOML 配置路径存在但不是文件：{config_file}")
         else:
             config_file = DEFAULT_CONFIG_PATH
-
             if os.path.exists(config_file):
                 if not os.path.isfile(config_file):
                     raise ScriptError(f"错误：默认 TOML 配置路径存在但不是文件：{config_file}")
@@ -902,30 +777,23 @@ def run(argv):
                 config_file = None
 
         cfg = {}
-
         if config_file is not None:
             cfg = load_config_file(config_file)
 
-        config_dir = os.path.dirname(os.path.abspath(config_file)) if config_file else CONFIG_DIR
-        if not config_dir.endswith("\\"):
-            config_dir += "\\"
+        config_dir = SCRIPT_DIR
 
         def resolve_dir(cli_value, cfg_key, builtin_value, param_name):
             if cli_value is not None:
                 return resolve_path(cli_value, "dir", os.getcwd(), param_name)
-
             if cfg_key in cfg:
                 return resolve_path(cfg[cfg_key], "dir", config_dir, cfg_key)
-
             return builtin_value
 
         def resolve_file(cli_value, cfg_key, builtin_value, param_name):
             if cli_value is not None:
                 return resolve_path(cli_value, "file", os.getcwd(), param_name)
-
             if cfg_key in cfg:
                 return resolve_path(cfg[cfg_key], "file", config_dir, cfg_key)
-
             return builtin_value
 
         output_dir = resolve_dir(args.output_dir, "output_dir", builtin["output_dir"], "--output-dir")
@@ -937,23 +805,19 @@ def run(argv):
         java_runtime_raw = args.java_runtime
         if java_runtime_raw is None:
             java_runtime_raw = cfg.get("java_runtime", builtin["java_runtime"])
-
         java_runtime = normalize_embedded_runtime(java_runtime_raw, "--java-runtime / java_runtime")
 
         xms_raw = args.xms
         if xms_raw is None:
             xms_raw = cfg.get("xms", builtin["xms"])
-
         xmx_raw = args.xmx
         if xmx_raw is None:
             xmx_raw = cfg.get("xmx", builtin["xmx"])
 
         xms = str(xms_raw).strip()
         xmx = str(xmx_raw).strip()
-
         if not xms:
             raise ScriptError("错误：xms 不能为空。")
-
         if not xmx:
             raise ScriptError("错误：xmx 不能为空。")
 
@@ -969,7 +833,6 @@ def run(argv):
             oprint("提示：也可以使用命令行参数执行，使用 --help 可查看完整参数说明：")
             oprint(f"      .\\{SCRIPT_NAME} --help")
             oprint("")
-
             oprint("当前环境配置：")
             oprint(f"  启动脚本输出目录: {output_dir}")
             oprint(f"  实例配置根目录: {configs_root}")
@@ -985,7 +848,6 @@ def run(argv):
                     "错误：缺少目标实例。\n"
                     "请提供 --instance ，或在未提供任何参数时进入交互模式。"
                 )
-
             instance = interactive_select(worlds_root, version_map_data)
 
         version_code = validate_instance_name(instance, version_map_data)
@@ -994,7 +856,6 @@ def run(argv):
         bat_content = generate_bat(instance, mc_version, java_runtime, xms, xmx)
 
         output_dir_no = output_dir.rstrip("\\")
-
         try:
             os.makedirs(output_dir_no, exist_ok=True)
         except OSError as exc:
@@ -1006,7 +867,6 @@ def run(argv):
             raise ScriptError(f"错误：目标启动脚本路径已存在但不是文件：{bat_path}")
 
         backup_path = None
-
         if os.path.exists(bat_path):
             if not args.overwrite:
                 if not interactive_mode:
@@ -1015,10 +875,8 @@ def run(argv):
                         f"路径：{bat_path}\n"
                         "非交互模式下必须提供 --overwrite 才允许覆盖。"
                     )
-
                 if not confirm_overwrite(bat_path):
                     raise UserCancel()
-
             backup_path = backup_bat(bat_path, backup_dir)
             oprint(f"[INFO] 已备份原启动脚本: \"{backup_path}\"")
 
@@ -1032,38 +890,31 @@ def run(argv):
                         os.remove(bat_path)
                 except OSError:
                     pass
-
                 try:
                     shutil.copy2(backup_path, bat_path)
                 except Exception:
                     raise RuntimeScriptError(f"错误：写入启动脚本失败且恢复备份失败。\n备份保留：{backup_path}")
-
                 raise RuntimeScriptError(f"错误：写入启动脚本失败，已恢复原启动脚本。\n详情：{exc}")
-
             try:
                 if os.path.exists(bat_path):
                     os.remove(bat_path)
             except OSError:
                 pass
-
             raise RuntimeScriptError(f"错误：写入启动脚本失败。\n详情：{exc}")
 
         oprint("")
         oprint(f"[INFO] 已生成启动脚本: \"{bat_path}\"")
         oprint("")
-
         return EXIT_SUCCESS, no_input
 
     except UserCancel as exc:
         oprint(exc.message)
         oprint("")
         return EXIT_CANCEL, no_input
-
     except ScriptError as exc:
         eprint(exc.message)
         eprint("")
         return exc.exit_code, no_input
-
     except Exception as exc:
         eprint("")
         eprint(f"错误：发生未预期异常。\n详情：{exc}")
@@ -1079,7 +930,6 @@ def entry():
         oprint("已取消操作。")
         oprint("")
         os._exit(0)
-
     pause(no_input)
     sys.exit(exit_code)
 
