@@ -1,12 +1,6 @@
-commands: 
+commands:
   suggest-player-names-when-null-tab-completions: false
 misc:
   enable-nether: false
-packet-limiter: 
-  all-packets: 
-    interval: -1
-  overrides: 
-    minecraft:place_recipe: 
-      interval: -1
-time: 
+time:
   affects-all-worlds: true
