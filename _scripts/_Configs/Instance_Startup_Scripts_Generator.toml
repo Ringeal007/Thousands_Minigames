@@ -25,3 +25,6 @@ xmx = "6144M"
 
 # 启动脚本备份目录。目录路径。
 backup_dir = "..\\_startup_scripts_legacy\\_backups\\"
+
+# 每个启动脚本最大备份保留数量。0 表示不限制。
+max_backups = 0

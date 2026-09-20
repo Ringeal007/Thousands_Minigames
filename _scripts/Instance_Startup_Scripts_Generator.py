@@ -60,6 +60,7 @@ TOML_ALLOWED_CONFIG_KEYS = {
     "xms",
     "xmx",
     "backup_dir",
+    "max_backups",
 }
 
 HELP_ARGS = {
@@ -386,6 +387,33 @@ def make_relative_file(target_file, base_dir):
     return rel
 
 
+def _cleanup_old_file_backups(backup_dir, filename, max_backups):
+    if max_backups <= 0:
+        return
+    backup_dir_no = backup_dir.rstrip("\\")
+    if not os.path.isdir(backup_dir_no):
+        return
+    prefix = f"{filename}.bak."
+    try:
+        entries = [
+            e.name for e in os.scandir(backup_dir_no)
+            if e.is_file(follow_symlinks=False) and e.name.startswith(prefix)
+        ]
+    except OSError:
+        return
+    entries.sort()
+    if len(entries) <= max_backups:
+        return
+    to_remove = entries[:len(entries) - max_backups]
+    for name in to_remove:
+        full_path = ntpath.join(backup_dir_no, name)
+        try:
+            os.remove(full_path)
+            oprint(f"[INFO] 已清理过期备份: {name}")
+        except Exception:
+            oprint(f"[WARN] 无法清理过期备份: {name}")
+
+
 def create_default_config(config_path):
     config_path = os.path.abspath(config_path)
     config_dir = os.path.dirname(config_path)
@@ -423,6 +451,9 @@ def create_default_config(config_path):
         "",
         "# 启动脚本备份目录。目录路径。",
         f'backup_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["backup_dir"], SCRIPT_DIR))}"',
+        "",
+        "# 每个启动脚本最大备份保留数量。0 表示不限制。",
+        "max_backups = 0",
     ]
     write_toml_atomic(config_path, "\n".join(lines) + "\n")
 
@@ -443,8 +474,16 @@ def load_config_file(path):
     if unknown_keys:
         raise ScriptError(f"错误：TOML 配置中存在未知字段：{', '.join(unknown_keys)}\n文件：{path}")
     for key in TOML_ALLOWED_CONFIG_KEYS:
+        if key == "max_backups":
+            continue
         if key in data and not isinstance(data[key], str):
             raise ScriptError(f"错误：TOML 配置字段 {key} 必须是字符串。\n文件：{path}")
+    if "max_backups" in data:
+        value = data["max_backups"]
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ScriptError(f"错误：TOML 配置字段 max_backups 必须是整数。\n文件：{path}")
+        if value < 0:
+            raise ScriptError(f"错误：TOML 配置字段 max_backups 不能为负数。\n文件：{path}")
     return data
 
 
@@ -624,7 +663,7 @@ def confirm_overwrite(target_path):
     return answer in ("y", "yes")
 
 
-def backup_bat(src, backup_dir):
+def backup_bat(src, backup_dir, max_backups):
     backup_dir_no = backup_dir.rstrip("\\")
     try:
         os.makedirs(backup_dir_no, exist_ok=True)
@@ -642,6 +681,9 @@ def backup_bat(src, backup_dir):
         shutil.copy2(src, backup_path)
     except Exception as exc:
         raise RuntimeScriptError(f"错误：备份启动脚本失败。\n原文件：{src}\n备份文件：{backup_path}\n详情：{exc}")
+
+    _cleanup_old_file_backups(backup_dir, fn, max_backups)
+
     return backup_path
 
 
@@ -821,6 +863,9 @@ def run(argv):
         if not xmx:
             raise ScriptError("错误：xmx 不能为空。")
 
+        max_backups_raw = cfg.get("max_backups", 0)
+        max_backups = int(max_backups_raw) if isinstance(max_backups_raw, int) else 0
+
         ensure_dir_if_exists(output_dir, "启动脚本输出目录")
         ensure_dir_if_exists(configs_root, "实例配置根目录")
         ensure_dir_if_exists(worlds_root, "世界目录")
@@ -877,7 +922,7 @@ def run(argv):
                     )
                 if not confirm_overwrite(bat_path):
                     raise UserCancel()
-            backup_path = backup_bat(bat_path, backup_dir)
+            backup_path = backup_bat(bat_path, backup_dir, max_backups)
             oprint(f"[INFO] 已备份原启动脚本: \"{backup_path}\"")
 
         try:
@@ -894,6 +939,8 @@ def run(argv):
                     shutil.copy2(backup_path, bat_path)
                 except Exception:
                     raise RuntimeScriptError(f"错误：写入启动脚本失败且恢复备份失败。\n备份保留：{backup_path}")
+                if not os.path.isfile(bat_path):
+                    raise RuntimeScriptError(f"错误：恢复备份后目标文件不存在。\n备份保留：{backup_path}")
                 raise RuntimeScriptError(f"错误：写入启动脚本失败，已恢复原启动脚本。\n详情：{exc}")
             try:
                 if os.path.exists(bat_path):
