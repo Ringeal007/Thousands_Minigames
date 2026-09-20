@@ -55,6 +55,7 @@ ALLOWED_CONFIG_KEYS = {
     "world_dir",
     "backup_dir",
     "version_map",
+    "max_backups",
 }
 
 HELP_ARGS = {
@@ -320,6 +321,64 @@ def make_relative_file(target_file, base_dir):
     return rel
 
 
+def _count_items(dir_path):
+    dir_no = dir_path.rstrip("\\")
+    if not os.path.isdir(dir_no):
+        return 0
+    count = 0
+    try:
+        for root, dirs, files in os.walk(dir_no):
+            count += len(dirs) + len(files)
+    except OSError:
+        pass
+    return count
+
+
+def _write_backup_info(backup_path, instance_name, zip_path, target_dir):
+    info_path = ntpath.join(backup_path.rstrip("\\"), "_backup_info.txt")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = [
+        f"backup_time = {timestamp}",
+        f"instance_name = {instance_name}",
+        f"source_zip = {zip_path}",
+        f"target_dir = {target_dir}",
+        f"backup_path = {backup_path}",
+        f"script = {SCRIPT_NAME}",
+    ]
+    try:
+        with open(info_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError:
+        pass
+
+
+def _cleanup_old_backups(backup_root, instance_name, max_backups):
+    if max_backups <= 0:
+        return
+    backup_root_no = backup_root.rstrip("\\")
+    if not os.path.isdir(backup_root_no):
+        return
+    prefix = f"{instance_name}.bak."
+    try:
+        entries = [
+            e.name for e in os.scandir(backup_root_no)
+            if e.is_dir(follow_symlinks=False) and e.name.startswith(prefix)
+        ]
+    except OSError:
+        return
+    entries.sort()
+    if len(entries) <= max_backups:
+        return
+    to_remove = entries[:len(entries) - max_backups]
+    for name in to_remove:
+        full_path = ntpath.join(backup_root_no, name)
+        try:
+            shutil.rmtree(full_path, onerror=_on_rm_error)
+            oprint(f"[INFO] 已清理过期备份: {name}")
+        except Exception:
+            oprint(f"[WARN] 无法清理过期备份: {name}")
+
+
 def create_default_config(config_path):
     config_path = os.path.abspath(config_path)
     config_dir = os.path.dirname(config_path)
@@ -345,6 +404,9 @@ def create_default_config(config_path):
         "",
         "# 版本映射文件。文件路径。",
         f'version_map = "{escape_toml(make_relative_file(BUILTIN_CONFIG["version_map"], SCRIPT_DIR))}"',
+        "",
+        "# 每个实例最大备份保留数量。0 表示不限制。",
+        "max_backups = 0",
     ]
     write_toml_atomic(config_path, "\n".join(lines) + "\n")
 
@@ -365,8 +427,16 @@ def load_config_file(path):
     if unknown_keys:
         raise ScriptError(f"错误：TOML 配置中存在未知字段：{', '.join(unknown_keys)}\n文件：{path}")
     for key in ALLOWED_CONFIG_KEYS:
+        if key == "max_backups":
+            continue
         if key in data and not isinstance(data[key], str):
             raise ScriptError(f"错误：TOML 配置字段 {key} 必须是字符串。\n文件：{path}")
+    if "max_backups" in data:
+        value = data["max_backups"]
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise ScriptError(f"错误：TOML 配置字段 max_backups 必须是整数。\n文件：{path}")
+        if value < 0:
+            raise ScriptError(f"错误：TOML 配置字段 max_backups 不能为负数。\n文件：{path}")
     return data
 
 
@@ -645,13 +715,14 @@ def validate_zip_structure(zip_path, instance_name):
         raise RuntimeScriptError(f"错误：读取 ZIP 时发生未知错误。\n压缩包：{zip_path}\n详情：{exc}")
 
 
-def perform_backup(target_dir, backup_dir, instance_name):
+def perform_backup(target_dir, backup_dir, instance_name, zip_path):
     backup_root_no = backup_dir.rstrip("\\")
     target_no = target_dir.rstrip("\\")
     try:
         os.makedirs(backup_root_no, exist_ok=True)
     except OSError as exc:
         raise RuntimeScriptError(f"错误：无法创建备份目录：{backup_dir}\n详情：{exc}")
+
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     backup_name = f"{instance_name}.bak.{timestamp}"
     backup_path = os.path.join(backup_root_no, backup_name)
@@ -660,12 +731,26 @@ def perform_backup(target_dir, backup_dir, instance_name):
     while os.path.exists(backup_path):
         backup_path = f"{original_backup_path}-{counter:03d}"
         counter += 1
+
+    if os.path.exists(backup_path):
+        counter = 1
+        while os.path.exists(backup_path):
+            backup_path = f"{original_backup_path}-{counter:03d}"
+            counter += 1
+
     backup_path_dir = backup_path + "\\"
     oprint(f"[INFO] 正在将现有目录备份至: \"{backup_path_dir}\"")
+
     try:
         shutil.move(target_no, backup_path.rstrip("\\"))
     except Exception as exc:
         raise RuntimeScriptError(f"错误：备份目标目录失败。\n目标目录：{target_dir}\n备份目录：{backup_path_dir}\n详情：{exc}")
+
+    _write_backup_info(backup_path_dir, instance_name, zip_path, target_dir)
+
+    item_count = _count_items(backup_path_dir)
+    oprint(f"[INFO] 备份完成，包含 {item_count} 个文件/目录。")
+
     return backup_path_dir
 
 
@@ -710,7 +795,7 @@ def extract_archive(zip_path, target_dir):
         raise RuntimeScriptError(f"错误：解压失败。\n压缩包：{zip_path}\n详情：{exc}")
 
 
-def perform_import(zip_path, target_dir, backup_path, target_existed, target_nonempty):
+def perform_import(zip_path, target_dir, backup_path, target_existed, target_nonempty, backup_dir, instance_name, max_backups):
     target_no = target_dir.rstrip("\\")
     try:
         try:
@@ -740,13 +825,20 @@ def perform_import(zip_path, target_dir, backup_path, target_existed, target_non
                 raise RuntimeScriptError(
                     f"错误：导入失败且恢复备份失败。\n备份保留：{backup_path}\n恢复错误：{restore_exc}"
                 )
+            if not os.path.isdir(target_no):
+                raise RuntimeScriptError(f"错误：恢复备份后目标目录不存在。\n备份保留：{backup_path}")
             raise RuntimeScriptError(f"错误：导入失败，已恢复原目标目录。\n原错误：{exc}")
         if isinstance(exc, ScriptError):
             raise
         raise RuntimeScriptError(f"错误：导入失败。\n详情：{exc}")
 
     oprint("[INFO] 导入完成。")
+    if backup_path is not None:
+        oprint(f"备份位置: {backup_path}")
     oprint("")
+
+    if backup_path is not None and max_backups > 0:
+        _cleanup_old_backups(backup_dir, instance_name, max_backups)
 
 
 def build_parser():
@@ -870,6 +962,9 @@ def run(argv):
         else:
             backup_dir = resolve_path(ntpath.join(world_dir, DEFAULT_BACKUP_DIR_NAME), "dir", world_dir, "backup_dir")
 
+        max_backups_raw = cfg.get("max_backups", 0)
+        max_backups = int(max_backups_raw) if isinstance(max_backups_raw, int) else 0
+
         ensure_dir_if_exists(archive_dir, "压缩包目录")
         ensure_dir_if_exists(world_dir, "世界目录")
         ensure_dir_if_exists(backup_dir, "备份目录")
@@ -926,9 +1021,9 @@ def run(argv):
                     )
                 if not confirm_dangerous_operation(target_dir):
                     raise UserCancel()
-            backup_path = perform_backup(target_dir, backup_dir, instance_name)
+            backup_path = perform_backup(target_dir, backup_dir, instance_name, zip_path)
 
-        perform_import(zip_path, target_dir, backup_path, target_existed, target_nonempty)
+        perform_import(zip_path, target_dir, backup_path, target_existed, target_nonempty, backup_dir, instance_name, max_backups)
 
         oprint(f"压缩包: {zip_path}")
         oprint(f"目标目录: {target_dir}")

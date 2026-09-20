@@ -13,3 +13,6 @@ backup_dir = "..\\worlds\\_backups\\"
 
 # 版本映射文件。文件路径。
 version_map = ".\\_Configs\\Version_Map.toml"
+
+# 每个实例最大备份保留数量。0 表示不限制。
+max_backups = 0
