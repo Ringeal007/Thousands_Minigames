@@ -1,0 +1,6 @@
+commands:
+  suggest-player-names-when-null-tab-completions: false
+misc:
+  enable-nether: false
+time:
+  affects-all-worlds: true
