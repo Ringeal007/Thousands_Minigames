@@ -12,6 +12,7 @@ import re
 import argparse
 import shutil
 import subprocess
+import traceback
 from datetime import datetime
 
 try:
@@ -44,6 +45,8 @@ CONFIG_DIR = os.path.join(SCRIPT_DIR, CONFIG_DIR_NAME) + "\\"
 DEFAULT_CONFIG_PATH = CONFIG_DIR + CONFIG_FILE_NAME
 DEFAULT_VERSION_MAP = CONFIG_DIR + VERSION_MAP_FILE_NAME
 
+DEFAULT_BASE_DIR = BASE_DIR
+
 BUILTIN_CONFIG = {
     "archive_dir": os.path.join(BASE_DIR, "_worlds_archives") + "\\",
     "world_dir": os.path.join(BASE_DIR, "worlds") + "\\",
@@ -64,6 +67,7 @@ ALLOWED_CONFIG_KEYS = {
     "template_root",
     "output_dir",
     "version_map",
+    "base_dir",
 }
 
 HELP_ARGS = {
@@ -152,6 +156,12 @@ Instances_Deploy_Pipeline
   脚本会使用完整内置默认配置继续运行。
   使用 --create-config 可将默认配置文件写入磁盘。
 
+路径与优先级：
+  优先级：CLI > TOML > BUILTIN_CONFIG 。
+  命令行路径相对当前工作目录；TOML 路径相对 base_dir 。
+  base_dir 默认是 _scripts 的上一级（仓库根）。
+  目录路径末尾必须带路径分隔符；文件路径末尾不得带路径分隔符。
+
 危险操作确认：
   检测到已有目标时使用 [y/N] 。
   直接按回车默认选择 N 。
@@ -219,7 +229,7 @@ def help_requested(argv):
 
 
 def print_help():
-    oprint(HELP_TEXT.strip())
+    oprint(HELP_TEXT.strip().replace("{脚本所在目录}", SCRIPT_DIR))
     oprint("")
 
 
@@ -242,8 +252,10 @@ def normalize_raw_path(raw, path_type, param_name):
             "说明：末尾带路径分隔符的路径必须视为文件夹。\n"
             "请移除末尾分隔符，或改用目录型参数。"
         )
-    if path_type not in ("file", "dir"):
+    if path_type not in ("file", "dir", "auto"):
         raise ScriptError(f"错误：内部路径类型不合法：{path_type}")
+    if path_type == "auto":
+        return text
     return text
 
 
@@ -346,6 +358,7 @@ def make_relative_file(target_file, base_dir):
     return rel
 
 
+
 def create_default_config(config_path):
     config_path = os.path.abspath(config_path)
     config_dir = os.path.dirname(config_path)
@@ -355,30 +368,42 @@ def create_default_config(config_path):
         except OSError as exc:
             raise RuntimeScriptError(f"错误：无法创建配置文件目录：{config_dir}\n详情：{exc}")
 
+    base_rel = ".." + os.sep
+    archive_rel = "_worlds_archives" + os.sep
+    world_rel = "worlds" + os.sep
+    configs_rel = "configs" + os.sep
+    template_rel = "_scripts" + os.sep + "TM_Example_Configs" + os.sep + "configs" + os.sep
+    output_rel = "_startup_scripts_legacy" + os.sep
+    version_rel = "_scripts" + os.sep + "_Configs" + os.sep + "Version_Map.toml"
+
     lines = [
         "# Thousands Minigames",
         "# Instances_Deploy_Pipeline 配置",
-        "# 相对路径相对于脚本所在目录解析。",
+        "# base_dir 的相对路径相对于脚本所在目录（_scripts）解析。",
+        "# 其余相对路径相对于 base_dir 解析。",
         "",
-        "# 压缩包所在目录。目录路径。",
-        f'archive_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["archive_dir"], SCRIPT_DIR))}"',
+        "# 基准目录。目录路径。",
+        f'base_dir = "{escape_toml(base_rel)}"',
+        "",
+        "# 存档压缩包目录。目录路径。",
+        f'archive_dir = "{escape_toml(archive_rel)}"',
         "",
         "# 世界根目录。目录路径。",
-        f'world_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["world_dir"], SCRIPT_DIR))}"',
+        f'world_dir = "{escape_toml(world_rel)}"',
         "",
         "# 实例配置根目录。目录路径。",
-        f'configs_root = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["configs_root"], SCRIPT_DIR))}"',
+        f'configs_root = "{escape_toml(configs_rel)}"',
         "",
         "# 模板配置根目录。目录路径。",
-        f'template_root = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["template_root"], SCRIPT_DIR))}"',
+        f'template_root = "{escape_toml(template_rel)}"',
         "",
         "# 启动脚本输出目录。目录路径。",
-        f'output_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["output_dir"], SCRIPT_DIR))}"',
+        f'output_dir = "{escape_toml(output_rel)}"',
         "",
         "# 版本映射文件。文件路径。",
-        f'version_map = "{escape_toml(make_relative_file(BUILTIN_CONFIG["version_map"], SCRIPT_DIR))}"',
+        f'version_map = "{escape_toml(version_rel)}"',
     ]
-    write_toml_atomic(config_path, "\n".join(lines) + "\n")
+    write_toml_atomic(config_path, chr(10).join(lines) + chr(10))
 
 
 def load_config_file(path):
@@ -400,6 +425,45 @@ def load_config_file(path):
         if key in data and not isinstance(data[key], str):
             raise ScriptError(f"错误：TOML 配置字段 {key} 必须是字符串。\n文件：{path}")
     return data
+
+
+
+def resolve_base_dir(raw):
+    if raw is None:
+        return DEFAULT_BASE_DIR
+    path = resolve_path(raw, "dir", SCRIPT_DIR, "--base-dir")
+    if not os.path.isdir(path.rstrip(os.sep)):
+        raise ScriptError(f"错误：base_dir 目录不存在：{path}")
+    return path
+
+
+def resolve_auto_path(raw, base_dir, param_name):
+    if raw is None:
+        return None
+    text = normalize_raw_path(raw, "auto", param_name)
+    base = base_dir if base_dir else os.getcwd()
+    if not ntpath.isabs(base):
+        base = os.path.abspath(base)
+    candidate = text if ntpath.isabs(text) else ntpath.join(base, text)
+    if text.endswith(os.sep):
+        kind = "dir"
+    elif os.path.isfile(candidate):
+        kind = "file"
+    else:
+        kind = "dir"
+    return resolve_path(raw, kind, base_dir, param_name)
+
+
+def build_builtin_config(base_dir):
+    return {
+        "base_dir": base_dir,
+        "archive_dir": normalize_raw_path(ntpath.join(base_dir, "_worlds_archives"), "dir", "builtin archive_dir") + os.sep,
+        "world_dir": normalize_raw_path(ntpath.join(base_dir, "worlds"), "dir", "builtin world_dir") + os.sep,
+        "configs_root": normalize_raw_path(ntpath.join(base_dir, "configs"), "dir", "builtin configs_root") + os.sep,
+        "template_root": normalize_raw_path(ntpath.join(SCRIPT_DIR, "TM_Example_Configs", "configs"), "dir", "builtin template_root") + os.sep,
+        "output_dir": normalize_raw_path(ntpath.join(base_dir, "_startup_scripts_legacy"), "dir", "builtin output_dir") + os.sep,
+        "version_map": DEFAULT_VERSION_MAP,
+    }
 
 
 def load_version_map(path):
@@ -574,7 +638,8 @@ def confirm_selected_instances(selected_instances):
         raise UserCancel()
 
 
-def confirm(prompt, default_yes=False):
+
+def confirm(prompt, default_yes=False, retry_invalid=True):
     while True:
         try:
             answer = input(prompt).strip().lower()
@@ -585,6 +650,8 @@ def confirm(prompt, default_yes=False):
         if answer in ("y", "yes"):
             return True
         if answer in ("n", "no"):
+            return False
+        if not retry_invalid:
             return False
         oprint("无效输入。请输入 y / yes 或 n / no 。")
         oprint("")
@@ -698,6 +765,7 @@ def format_cmd_for_display(cmd):
     return " ".join(parts)
 
 
+
 def build_parser():
     parser = StrictArgumentParser(
         prog=SCRIPT_NAME,
@@ -705,6 +773,7 @@ def build_parser():
         description="Thousands Minigames 实例部署流水线",
     )
     parser.add_argument("--config", "-c", dest="config", metavar="FILE", default=None, help="TOML 配置文件")
+    parser.add_argument("--base-dir", dest="base_dir", metavar="DIR", default=None, help="基准目录（相对 _scripts 解析）")
     parser.add_argument("--create-config", dest="create_config", action="store_true", default=False, help="将默认配置文件写入磁盘后退出")
     parser.add_argument("--instance", "-i", dest="instance", metavar="NAME", default=None, help="目标实例名")
     parser.add_argument("--all", dest="all_instances", action="store_true", default=False, help="批量部署所有合法存档")
@@ -715,6 +784,7 @@ def build_parser():
     parser.add_argument("--skip-startup-script", dest="skip_startup", action="store_true", default=False, help="跳过生成启动脚本")
     parser.add_argument("--no-input", dest="no_input", action="store_true", default=False, help="强制非交互模式")
     return parser
+
 
 
 def run(argv):
@@ -777,28 +847,22 @@ def run(argv):
             if os.path.exists(target_config):
                 if not os.path.isfile(target_config):
                     raise ScriptError(f"错误：配置文件路径存在但不是文件：{target_config}")
-                oprint(f"[INFO] 配置文件已存在，未写入磁盘: \"{target_config}\"")
+                oprint(f"[INFO] 配置文件已存在，未写入磁盘: {target_config}")
             else:
                 create_default_config(target_config)
-                oprint(f"[INFO] 已将默认配置写入磁盘: \"{target_config}\"")
+                oprint(f"[INFO] 已将默认配置写入磁盘: {target_config}")
             return EXIT_SUCCESS, no_input
 
-        builtin = {
-            "archive_dir": resolve_path(BUILTIN_CONFIG["archive_dir"], "dir", None, "builtin archive_dir"),
-            "world_dir": resolve_path(BUILTIN_CONFIG["world_dir"], "dir", None, "builtin world_dir"),
-            "configs_root": resolve_path(BUILTIN_CONFIG["configs_root"], "dir", None, "builtin configs_root"),
-            "template_root": resolve_path(BUILTIN_CONFIG["template_root"], "dir", None, "builtin template_root"),
-            "output_dir": resolve_path(BUILTIN_CONFIG["output_dir"], "dir", None, "builtin output_dir"),
-            "version_map": resolve_path(BUILTIN_CONFIG["version_map"], "file", None, "builtin version_map"),
-        }
+        base_dir = resolve_base_dir(args.base_dir)
+        builtin = build_builtin_config(base_dir)
 
         if args.config is not None:
             config_file = resolve_path(args.config, "file", os.getcwd(), "--config")
             if not os.path.exists(config_file):
                 raise ScriptError(
-                    f"错误：TOML 配置文件不存在：{config_file}\n"
-                    "说明：显式指定的配置文件必须存在。\n"
-                    "如果只是想使用默认内置配置，请不要提供 --config 。\n"
+                    f"错误：TOML 配置文件不存在：{config_file}"
+                    "说明：显式指定的配置文件必须存在。"
+                    "如果只是想使用默认内置配置，请不要提供 --config 。"
                     "如果想将默认配置写入磁盘，请使用 --create-config 。"
                 )
             if not os.path.isfile(config_file):
@@ -814,17 +878,18 @@ def run(argv):
         cfg = {}
         if config_file is not None:
             cfg = load_config_file(config_file)
-
-        config_dir = SCRIPT_DIR
+            if "base_dir" in cfg and args.base_dir is None:
+                base_dir = resolve_base_dir(cfg["base_dir"])
+                builtin = build_builtin_config(base_dir)
 
         def get_dir(cfg_key, builtin_value):
             if cfg_key in cfg:
-                return resolve_path(cfg[cfg_key], "dir", config_dir, cfg_key)
+                return resolve_path(cfg[cfg_key], "dir", base_dir, cfg_key)
             return builtin_value
 
         def get_file(cfg_key, builtin_value):
             if cfg_key in cfg:
-                return resolve_path(cfg[cfg_key], "file", config_dir, cfg_key)
+                return resolve_path(cfg[cfg_key], "file", base_dir, cfg_key)
             return builtin_value
 
         archive_dir = get_dir("archive_dir", builtin["archive_dir"])
@@ -845,9 +910,10 @@ def run(argv):
         if interactive_mode:
             oprint("提示：当前为交互模式。")
             oprint("提示：也可以使用命令行参数执行，使用 --help 可查看完整参数说明：")
-            oprint(f"      .\\{SCRIPT_NAME} --help")
+            oprint(f"      .{os.sep}{SCRIPT_NAME} --help")
             oprint("")
             oprint("当前环境配置：")
+            oprint(f"  基准目录: {base_dir}")
             oprint(f"  压缩包目录: {archive_dir}")
             oprint(f"  世界根目录: {world_dir}")
             oprint(f"  实例配置根目录: {configs_root}")
@@ -870,7 +936,7 @@ def run(argv):
         else:
             if not interactive_mode:
                 raise ScriptError(
-                    "错误：缺少目标实例。\n"
+                    "错误：缺少目标实例。"
                     "请提供 --instance 、--all ，或在未提供任何参数时进入交互模式。"
                 )
             selected_instances = interactive_select_instances(archive_dir, version_map_data)
@@ -891,7 +957,7 @@ def run(argv):
             try:
                 version_code = validate_instance_name(instance, version_map_data)
                 mc_version = version_map_data[version_code]
-                zip_path = ntpath.join(archive_dir.rstrip("\\"), f"{instance}.zip")
+                zip_path = ntpath.join(archive_dir.rstrip(os.sep), f"{instance}.zip")
 
                 if not os.path.isfile(zip_path):
                     oprint(f"[ERROR] 找不到对应的存档压缩包：{zip_path}")
@@ -900,7 +966,7 @@ def run(argv):
 
                 world_target = resolve_path(ntpath.join(world_dir, instance), "dir", world_dir, "world target")
                 config_target = resolve_path(ntpath.join(configs_root, instance), "dir", configs_root, "config target")
-                bat_path = ntpath.join(output_dir.rstrip("\\"), f"{instance}.bat")
+                bat_path = ntpath.join(output_dir.rstrip(os.sep), f"{instance}.bat")
 
                 world_exists, world_nonempty = inspect_dir(world_target)
                 config_exists, config_nonempty = inspect_dir(config_target)
@@ -935,7 +1001,7 @@ def run(argv):
                     else:
                         oprint("检测到已有目标。")
                         oprint("继续执行将允许各步骤在必要时备份后覆盖。")
-                        if not confirm("是否继续部署此实例？[y/N] ", False):
+                        if not confirm("是否继续部署此实例？[y/N] ", False, retry_invalid=False):
                             oprint("[INFO] 用户跳过该实例。")
                             results["skipped"].append(instance)
                             continue
@@ -1040,7 +1106,7 @@ def run(argv):
                 oprint(exc.message)
                 results["failed"].append(instance)
             except Exception as exc:
-                oprint(f"错误：发生未预期异常。\n详情：{exc}")
+                oprint(f"错误：发生未预期异常。详情：{exc}")
                 results["failed"].append(instance)
 
         if len(selected_instances) > 1:
@@ -1071,12 +1137,15 @@ def run(argv):
         return exc.exit_code, no_input
     except Exception as exc:
         eprint("")
-        eprint(f"错误：发生未预期异常。\n详情：{exc}")
+        eprint(f"错误：发生未预期异常。详情：{exc}")
         eprint("")
         return EXIT_RUNTIME_ERROR, no_input
 
 
+
 def entry():
+    exit_code = EXIT_RUNTIME_ERROR
+    no_input = False
     try:
         exit_code, no_input = run(sys.argv[1:])
     except KeyboardInterrupt:
@@ -1084,6 +1153,13 @@ def entry():
         oprint("已取消操作。")
         oprint("")
         os._exit(0)
+    except SystemExit:
+        raise
+    except BaseException:
+        eprint("")
+        eprint("错误：发生未处理异常。")
+        traceback.print_exc(file=sys.stderr)
+        eprint("")
     pause(no_input)
     sys.exit(exit_code)
 
