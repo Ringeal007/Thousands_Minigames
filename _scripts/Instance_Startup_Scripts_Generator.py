@@ -11,6 +11,7 @@ import ntpath
 import re
 import argparse
 import shutil
+import traceback
 from datetime import datetime
 
 try:
@@ -40,6 +41,8 @@ CONFIG_DIR = os.path.join(SCRIPT_DIR, CONFIG_DIR_NAME) + "\\"
 DEFAULT_CONFIG_PATH = CONFIG_DIR + CONFIG_FILE_NAME
 DEFAULT_VERSION_MAP = CONFIG_DIR + VERSION_MAP_FILE_NAME
 
+DEFAULT_BASE_DIR = BASE_DIR
+
 BUILTIN_CONFIG = {
     "output_dir": os.path.join(BASE_DIR, "_startup_scripts_legacy") + "\\",
     "configs_root": os.path.join(BASE_DIR, "configs") + "\\",
@@ -61,6 +64,7 @@ TOML_ALLOWED_CONFIG_KEYS = {
     "xmx",
     "backup_dir",
     "max_backups",
+    "base_dir",
 }
 
 HELP_ARGS = {
@@ -143,6 +147,9 @@ Instance_Startup_Scripts_Generator
   --worlds-root
     世界根目录。
 
+  --base-dir
+    基准目录。相对路径按 _scripts 解析；默认仓库根。
+
   --version-map
     版本映射文件。
 
@@ -172,6 +179,12 @@ Instance_Startup_Scripts_Generator
   未写入磁盘不代表配置不存在。
   脚本会使用完整内置默认配置继续运行。
   使用 --create-config 可将默认配置文件写入磁盘。
+
+路径与优先级：
+  优先级：CLI > TOML > BUILTIN_CONFIG 。
+  命令行路径相对当前工作目录；TOML 路径相对 base_dir 。
+  base_dir 默认是 _scripts 的上一级（仓库根）。
+  目录路径末尾必须带路径分隔符；文件路径末尾不得带路径分隔符。
 
 危险操作确认：
   目标启动脚本已存在时使用 [y/N] 。
@@ -240,7 +253,7 @@ def help_requested(argv):
 
 
 def print_help():
-    oprint(HELP_TEXT.strip())
+    oprint(HELP_TEXT.strip().replace("{脚本所在目录}", SCRIPT_DIR))
     oprint("")
 
 
@@ -263,8 +276,10 @@ def normalize_raw_path(raw, path_type, param_name):
             "说明：末尾带路径分隔符的路径必须视为文件夹。\n"
             "请移除末尾分隔符，或改用目录型参数。"
         )
-    if path_type not in ("file", "dir"):
+    if path_type not in ("file", "dir", "auto"):
         raise ScriptError(f"错误：内部路径类型不合法：{path_type}")
+    if path_type == "auto":
+        return text
     return text
 
 
@@ -414,6 +429,7 @@ def _cleanup_old_file_backups(backup_dir, filename, max_backups):
             oprint(f"[WARN] 无法清理过期备份: {name}")
 
 
+
 def create_default_config(config_path):
     config_path = os.path.abspath(config_path)
     config_dir = os.path.dirname(config_path)
@@ -423,25 +439,37 @@ def create_default_config(config_path):
         except OSError as exc:
             raise RuntimeScriptError(f"错误：无法创建配置文件目录：{config_dir}\n详情：{exc}")
 
+    base_rel = ".." + os.sep
+    output_rel = "_startup_scripts_legacy" + os.sep
+    configs_rel = "configs" + os.sep
+    worlds_rel = "worlds" + os.sep
+    version_rel = "_scripts" + os.sep + "_Configs" + os.sep + "Version_Map.toml"
+    java_rel = "." + os.sep + "runtimes" + os.sep + "zulu-25" + os.sep + "bin" + os.sep + "java.exe"
+    backup_rel = "_startup_scripts_legacy" + os.sep + "_backups" + os.sep
+
     lines = [
         "# Thousands Minigames",
         "# Instance_Startup_Scripts_Generator 配置",
-        "# 相对路径相对于脚本所在目录解析。",
+        "# base_dir 的相对路径相对于脚本所在目录（_scripts）解析。",
+        "# 其余相对路径相对于 base_dir 解析。",
+        "",
+        "# 基准目录。目录路径。",
+        f'base_dir = "{escape_toml(base_rel)}"',
         "",
         "# 启动脚本输出目录。目录路径。",
-        f'output_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["output_dir"], SCRIPT_DIR))}"',
+        f'output_dir = "{escape_toml(output_rel)}"',
         "",
         "# 实例配置根目录。目录路径。",
-        f'configs_root = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["configs_root"], SCRIPT_DIR))}"',
+        f'configs_root = "{escape_toml(configs_rel)}"',
         "",
         "# 世界根目录。目录路径。",
-        f'worlds_root = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["worlds_root"], SCRIPT_DIR))}"',
+        f'worlds_root = "{escape_toml(worlds_rel)}"',
         "",
         "# 版本映射文件。文件路径。",
-        f'version_map = "{escape_toml(make_relative_file(BUILTIN_CONFIG["version_map"], SCRIPT_DIR))}"',
+        f'version_map = "{escape_toml(version_rel)}"',
         "",
         "# Java 运行时路径。原样嵌入 .bat 。",
-        f'java_runtime = "{escape_toml(BUILTIN_CONFIG["java_runtime"])}"',
+        f'java_runtime = "{escape_toml(java_rel)}"',
         "",
         "# JVM 初始内存。",
         f'xms = "{escape_toml(BUILTIN_CONFIG["xms"])}"',
@@ -450,12 +478,12 @@ def create_default_config(config_path):
         f'xmx = "{escape_toml(BUILTIN_CONFIG["xmx"])}"',
         "",
         "# 启动脚本备份目录。目录路径。",
-        f'backup_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["backup_dir"], SCRIPT_DIR))}"',
+        f'backup_dir = "{escape_toml(backup_rel)}"',
         "",
         "# 每个启动脚本最大备份保留数量。0 表示不限制。",
         "max_backups = 0",
     ]
-    write_toml_atomic(config_path, "\n".join(lines) + "\n")
+    write_toml_atomic(config_path, chr(10).join(lines) + chr(10))
 
 
 def load_config_file(path):
@@ -485,6 +513,47 @@ def load_config_file(path):
         if value < 0:
             raise ScriptError(f"错误：TOML 配置字段 max_backups 不能为负数。\n文件：{path}")
     return data
+
+
+
+def resolve_base_dir(raw):
+    if raw is None:
+        return DEFAULT_BASE_DIR
+    path = resolve_path(raw, "dir", SCRIPT_DIR, "--base-dir")
+    if not os.path.isdir(path.rstrip(os.sep)):
+        raise ScriptError(f"错误：base_dir 目录不存在：{path}")
+    return path
+
+
+def resolve_auto_path(raw, base_dir, param_name):
+    if raw is None:
+        return None
+    text = normalize_raw_path(raw, "auto", param_name)
+    base = base_dir if base_dir else os.getcwd()
+    if not ntpath.isabs(base):
+        base = os.path.abspath(base)
+    candidate = text if ntpath.isabs(text) else ntpath.join(base, text)
+    if text.endswith(os.sep):
+        kind = "dir"
+    elif os.path.isfile(candidate):
+        kind = "file"
+    else:
+        kind = "dir"
+    return resolve_path(raw, kind, base_dir, param_name)
+
+
+def build_builtin_config(base_dir):
+    return {
+        "base_dir": base_dir,
+        "output_dir": normalize_raw_path(ntpath.join(base_dir, "_startup_scripts_legacy"), "dir", "builtin output_dir") + os.sep,
+        "configs_root": normalize_raw_path(ntpath.join(base_dir, "configs"), "dir", "builtin configs_root") + os.sep,
+        "worlds_root": normalize_raw_path(ntpath.join(base_dir, "worlds"), "dir", "builtin worlds_root") + os.sep,
+        "version_map": DEFAULT_VERSION_MAP,
+        "java_runtime": ".\\runtimes\\zulu-25\\bin\\java.exe",
+        "xms": "6144M",
+        "xmx": "6144M",
+        "backup_dir": normalize_raw_path(ntpath.join(base_dir, "_startup_scripts_legacy", "_backups"), "dir", "builtin backup_dir") + os.sep,
+    }
 
 
 def load_version_map(path):
@@ -652,15 +721,26 @@ def interactive_select(worlds_root, version_map):
             return instance
 
 
-def confirm_overwrite(target_path):
+
+def confirm_overwrite(bat_path):
     oprint("")
-    oprint(f"[WARNING] 目标启动脚本已存在: \"{target_path}\"")
-    oprint("继续执行将备份现有文件并覆盖。")
-    try:
-        answer = input("是否继续？[y/N] ").strip().lower()
-    except EOFError:
-        return False
-    return answer in ("y", "yes")
+    oprint("目标启动脚本已存在：")
+    oprint(bat_path)
+    oprint("")
+    oprint("即将备份后覆盖该文件。")
+    while True:
+        try:
+            answer = input("是否继续？[y/N] ").strip().lower()
+        except EOFError:
+            return False
+        if not answer:
+            return False
+        if answer in ("y", "yes"):
+            return True
+        if answer in ("n", "no"):
+            return False
+        oprint("无效输入。请输入 y / yes 或 n / no 。")
+        oprint("")
 
 
 def backup_bat(src, backup_dir, max_backups):
@@ -720,6 +800,7 @@ def generate_bat(instance_name, mc_version, java_runtime, xms, xmx):
     return "\r\n".join(lines) + "\r\n"
 
 
+
 def build_parser():
     parser = StrictArgumentParser(
         prog=SCRIPT_NAME,
@@ -727,6 +808,7 @@ def build_parser():
         description="Thousands Minigames 实例启动脚本生成工具",
     )
     parser.add_argument("--config", "-c", dest="config", metavar="FILE", default=None, help="TOML 配置文件")
+    parser.add_argument("--base-dir", dest="base_dir", metavar="DIR", default=None, help="基准目录（相对 _scripts 解析）")
     parser.add_argument("--create-config", dest="create_config", action="store_true", default=False, help="将默认配置文件写入磁盘后退出")
     parser.add_argument("--instance", "-i", dest="instance", metavar="NAME", default=None, help="目标实例名")
     parser.add_argument("--output-dir", dest="output_dir", metavar="DIR", default=None, help="启动脚本输出目录")
@@ -740,6 +822,7 @@ def build_parser():
     parser.add_argument("--overwrite", dest="overwrite", action="store_true", default=False, help="目标已存在时备份后覆盖")
     parser.add_argument("--no-input", dest="no_input", action="store_true", default=False, help="强制非交互模式")
     return parser
+
 
 
 def run(argv):
@@ -782,30 +865,22 @@ def run(argv):
             if os.path.exists(target_config):
                 if not os.path.isfile(target_config):
                     raise ScriptError(f"错误：配置文件路径存在但不是文件：{target_config}")
-                oprint(f"[INFO] 配置文件已存在，未写入磁盘: \"{target_config}\"")
+                oprint(f"[INFO] 配置文件已存在，未写入磁盘: {target_config}")
             else:
                 create_default_config(target_config)
-                oprint(f"[INFO] 已将默认配置写入磁盘: \"{target_config}\"")
+                oprint(f"[INFO] 已将默认配置写入磁盘: {target_config}")
             return EXIT_SUCCESS, no_input
 
-        builtin = {
-            "output_dir": resolve_path(BUILTIN_CONFIG["output_dir"], "dir", None, "builtin output_dir"),
-            "configs_root": resolve_path(BUILTIN_CONFIG["configs_root"], "dir", None, "builtin configs_root"),
-            "worlds_root": resolve_path(BUILTIN_CONFIG["worlds_root"], "dir", None, "builtin worlds_root"),
-            "version_map": resolve_path(BUILTIN_CONFIG["version_map"], "file", None, "builtin version_map"),
-            "backup_dir": resolve_path(BUILTIN_CONFIG["backup_dir"], "dir", None, "builtin backup_dir"),
-            "java_runtime": BUILTIN_CONFIG["java_runtime"],
-            "xms": BUILTIN_CONFIG["xms"],
-            "xmx": BUILTIN_CONFIG["xmx"],
-        }
+        base_dir = resolve_base_dir(args.base_dir)
+        builtin = build_builtin_config(base_dir)
 
         if args.config is not None:
             config_file = resolve_path(args.config, "file", os.getcwd(), "--config")
             if not os.path.exists(config_file):
                 raise ScriptError(
-                    f"错误：TOML 配置文件不存在：{config_file}\n"
-                    "说明：显式指定的配置文件必须存在。\n"
-                    "如果只是想使用默认内置配置，请不要提供 --config 。\n"
+                    f"错误：TOML 配置文件不存在：{config_file}"
+                    "说明：显式指定的配置文件必须存在。"
+                    "如果只是想使用默认内置配置，请不要提供 --config 。"
                     "如果想将默认配置写入磁盘，请使用 --create-config 。"
                 )
             if not os.path.isfile(config_file):
@@ -821,21 +896,22 @@ def run(argv):
         cfg = {}
         if config_file is not None:
             cfg = load_config_file(config_file)
-
-        config_dir = SCRIPT_DIR
+            if "base_dir" in cfg and args.base_dir is None:
+                base_dir = resolve_base_dir(cfg["base_dir"])
+                builtin = build_builtin_config(base_dir)
 
         def resolve_dir(cli_value, cfg_key, builtin_value, param_name):
             if cli_value is not None:
                 return resolve_path(cli_value, "dir", os.getcwd(), param_name)
             if cfg_key in cfg:
-                return resolve_path(cfg[cfg_key], "dir", config_dir, cfg_key)
+                return resolve_path(cfg[cfg_key], "dir", base_dir, cfg_key)
             return builtin_value
 
         def resolve_file(cli_value, cfg_key, builtin_value, param_name):
             if cli_value is not None:
                 return resolve_path(cli_value, "file", os.getcwd(), param_name)
             if cfg_key in cfg:
-                return resolve_path(cfg[cfg_key], "file", config_dir, cfg_key)
+                return resolve_path(cfg[cfg_key], "file", base_dir, cfg_key)
             return builtin_value
 
         output_dir = resolve_dir(args.output_dir, "output_dir", builtin["output_dir"], "--output-dir")
@@ -863,8 +939,7 @@ def run(argv):
         if not xmx:
             raise ScriptError("错误：xmx 不能为空。")
 
-        max_backups_raw = cfg.get("max_backups", 0)
-        max_backups = int(max_backups_raw) if isinstance(max_backups_raw, int) else 0
+        max_backups = cfg.get("max_backups", 0)
 
         ensure_dir_if_exists(output_dir, "启动脚本输出目录")
         ensure_dir_if_exists(configs_root, "实例配置根目录")
@@ -876,12 +951,14 @@ def run(argv):
         if interactive_mode:
             oprint("提示：当前为交互模式。")
             oprint("提示：也可以使用命令行参数执行，使用 --help 可查看完整参数说明：")
-            oprint(f"      .\\{SCRIPT_NAME} --help")
+            oprint(f"      .{os.sep}{SCRIPT_NAME} --help")
             oprint("")
             oprint("当前环境配置：")
+            oprint(f"  基准目录: {base_dir}")
             oprint(f"  启动脚本输出目录: {output_dir}")
             oprint(f"  实例配置根目录: {configs_root}")
             oprint(f"  世界根目录: {worlds_root}")
+            oprint(f"  备份目录: {backup_dir}")
             oprint(f"  版本映射: {version_map}")
             oprint("")
 
@@ -890,7 +967,7 @@ def run(argv):
         if not instance:
             if not interactive_mode:
                 raise ScriptError(
-                    "错误：缺少目标实例。\n"
+                    "错误：缺少目标实例。"
                     "请提供 --instance ，或在未提供任何参数时进入交互模式。"
                 )
             instance = interactive_select(worlds_root, version_map_data)
@@ -900,7 +977,7 @@ def run(argv):
 
         bat_content = generate_bat(instance, mc_version, java_runtime, xms, xmx)
 
-        output_dir_no = output_dir.rstrip("\\")
+        output_dir_no = output_dir.rstrip(os.sep)
         try:
             os.makedirs(output_dir_no, exist_ok=True)
         except OSError as exc:
@@ -916,14 +993,14 @@ def run(argv):
             if not args.overwrite:
                 if not interactive_mode:
                     raise ScriptError(
-                        "错误：目标启动脚本已存在且未提供 --overwrite 。\n"
-                        f"路径：{bat_path}\n"
+                        "错误：目标启动脚本已存在且未提供 --overwrite 。"
+                        f"路径：{bat_path}"
                         "非交互模式下必须提供 --overwrite 才允许覆盖。"
                     )
                 if not confirm_overwrite(bat_path):
                     raise UserCancel()
             backup_path = backup_bat(bat_path, backup_dir, max_backups)
-            oprint(f"[INFO] 已备份原启动脚本: \"{backup_path}\"")
+            oprint(f"[INFO] 已备份原启动脚本: {backup_path}")
 
         try:
             with open(bat_path, "w", encoding="utf-8", newline="") as f:
@@ -938,16 +1015,16 @@ def run(argv):
                 try:
                     shutil.copy2(backup_path, bat_path)
                 except Exception:
-                    raise RuntimeScriptError(f"错误：写入启动脚本失败且恢复备份失败。\n备份保留：{backup_path}")
+                    raise RuntimeScriptError(f"错误：写入启动脚本失败且恢复备份失败。备份保留：{backup_path}")
                 if not os.path.isfile(bat_path):
-                    raise RuntimeScriptError(f"错误：恢复备份后目标文件不存在。\n备份保留：{backup_path}")
-                raise RuntimeScriptError(f"错误：写入启动脚本失败，已恢复原启动脚本。\n详情：{exc}")
+                    raise RuntimeScriptError(f"错误：恢复备份后目标文件不存在。备份保留：{backup_path}")
+                raise RuntimeScriptError(f"错误：写入启动脚本失败，已恢复原启动脚本。详情：{exc}")
             try:
                 if os.path.exists(bat_path):
                     os.remove(bat_path)
             except OSError:
                 pass
-            raise RuntimeScriptError(f"错误：写入启动脚本失败。\n详情：{exc}")
+            raise RuntimeScriptError(f"错误：写入启动脚本失败。详情：{exc}")
 
         oprint("")
         oprint(f"[INFO] 已生成启动脚本: \"{bat_path}\"")
@@ -964,12 +1041,15 @@ def run(argv):
         return exc.exit_code, no_input
     except Exception as exc:
         eprint("")
-        eprint(f"错误：发生未预期异常。\n详情：{exc}")
+        eprint(f"错误：发生未预期异常。详情：{exc}")
         eprint("")
         return EXIT_RUNTIME_ERROR, no_input
 
 
+
 def entry():
+    exit_code = EXIT_RUNTIME_ERROR
+    no_input = False
     try:
         exit_code, no_input = run(sys.argv[1:])
     except KeyboardInterrupt:
@@ -977,6 +1057,13 @@ def entry():
         oprint("已取消操作。")
         oprint("")
         os._exit(0)
+    except SystemExit:
+        raise
+    except BaseException:
+        eprint("")
+        eprint("错误：发生未处理异常。")
+        traceback.print_exc(file=sys.stderr)
+        eprint("")
     pause(no_input)
     sys.exit(exit_code)
 
