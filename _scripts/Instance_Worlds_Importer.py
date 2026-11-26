@@ -13,6 +13,7 @@ import argparse
 import shutil
 import zipfile
 import stat
+import traceback
 from datetime import datetime
 
 try:
@@ -43,6 +44,8 @@ CONFIG_DIR = os.path.join(SCRIPT_DIR, CONFIG_DIR_NAME) + "\\"
 DEFAULT_CONFIG_PATH = CONFIG_DIR + CONFIG_FILE_NAME
 DEFAULT_VERSION_MAP = CONFIG_DIR + VERSION_MAP_FILE_NAME
 
+DEFAULT_BASE_DIR = BASE_DIR
+
 BUILTIN_CONFIG = {
     "archive_dir": os.path.join(BASE_DIR, "_worlds_archives") + "\\",
     "world_dir": os.path.join(BASE_DIR, "worlds") + "\\",
@@ -56,6 +59,7 @@ ALLOWED_CONFIG_KEYS = {
     "backup_dir",
     "version_map",
     "max_backups",
+    "base_dir",
 }
 
 HELP_ARGS = {
@@ -97,6 +101,9 @@ Instance_Worlds_Importer
   --config, -c
     TOML 配置文件。
 
+  --base-dir
+    基准目录。相对路径按 _scripts 解析；默认仓库根。
+
   --instance, -i
     目标实例名。
 
@@ -130,6 +137,13 @@ Instance_Worlds_Importer
 危险操作确认：
   目标目录已存在且非空时使用 [y/N] 。
   直接按回车默认选择 N 。
+
+路径与优先级：
+  优先级：命令行 > TOML > 内置默认值。
+  命令行路径相对当前工作目录；TOML 路径相对 base_dir。
+  base_dir 默认是 _scripts 的上一级（仓库根）。
+  目录路径末尾必须带路径分隔符；文件路径末尾不得带路径分隔符。
+  交互模式下，未提供任何参数会先打印简短提示，再进入选择。
 
 退出码：
   0 = 成功
@@ -194,7 +208,7 @@ def help_requested(argv):
 
 
 def print_help():
-    oprint(HELP_TEXT.strip())
+    oprint(HELP_TEXT.strip().replace("{脚本所在目录}", SCRIPT_DIR))
     oprint("")
 
 
@@ -217,7 +231,7 @@ def normalize_raw_path(raw, path_type, param_name):
             "说明：末尾带路径分隔符的路径必须视为文件夹。\n"
             "请移除末尾分隔符，或改用目录型参数。"
         )
-    if path_type not in ("file", "dir"):
+    if path_type not in ("file", "dir", "auto"):
         raise ScriptError(f"错误：内部路径类型不合法：{path_type}")
     return text
 
@@ -240,6 +254,43 @@ def resolve_path(raw, path_type, base_dir, param_name):
     else:
         norm = norm.rstrip("\\")
     return norm
+
+
+
+def resolve_base_dir(raw):
+    if raw is None:
+        return DEFAULT_BASE_DIR
+    path = resolve_path(raw, "dir", SCRIPT_DIR, "--base-dir")
+    if not os.path.isdir(path.rstrip(os.sep)):
+        raise ScriptError(f"错误：base_dir 目录不存在：{path}")
+    return path
+
+
+def resolve_auto_path(raw, base_dir, param_name):
+    text = normalize_raw_path(raw, "auto", param_name)
+    if text is None:
+        return None
+    base = base_dir if base_dir else os.getcwd()
+    if not ntpath.isabs(base):
+        base = os.path.abspath(base)
+    candidate = text if ntpath.isabs(text) else ntpath.join(base, text)
+    if text.endswith(os.sep):
+        kind = "dir"
+    elif os.path.isfile(candidate):
+        kind = "file"
+    else:
+        kind = "dir"
+    return resolve_path(raw, kind, base_dir, param_name)
+
+
+def build_builtin_config(base_dir):
+    return {
+        "base_dir": base_dir,
+        "archive_dir": resolve_path(ntpath.join(base_dir, "_worlds_archives"), "dir", base_dir, "builtin archive_dir"),
+        "world_dir": resolve_path(ntpath.join(base_dir, "worlds"), "dir", base_dir, "builtin world_dir"),
+        "backup_dir": resolve_path(ntpath.join(base_dir, "worlds", "_backups"), "dir", base_dir, "builtin backup_dir"),
+        "version_map": DEFAULT_VERSION_MAP,
+    }
 
 
 def ensure_dir_if_exists(path, label):
@@ -379,6 +430,7 @@ def _cleanup_old_backups(backup_root, instance_name, max_backups):
             oprint(f"[WARN] 无法清理过期备份: {name}")
 
 
+
 def create_default_config(config_path):
     config_path = os.path.abspath(config_path)
     config_dir = os.path.dirname(config_path)
@@ -388,32 +440,41 @@ def create_default_config(config_path):
         except OSError as exc:
             raise RuntimeScriptError(f"错误：无法创建配置文件目录：{config_dir}\n详情：{exc}")
 
+    rel_base = ".." + os.sep
+    rel_archive = "_worlds_archives" + os.sep
+    rel_world = "worlds" + os.sep
+    rel_backup = "worlds" + os.sep + "_backups" + os.sep
+    rel_version = "_scripts" + os.sep + "_Configs" + os.sep + "Version_Map.toml"
     lines = [
         "# Thousands Minigames",
         "# Instance_Worlds_Importer 配置",
-        "# 相对路径相对于脚本所在目录解析。",
+        "# base_dir 的相对路径相对于脚本所在目录（_scripts）解析。",
+        "# 其余相对路径相对于 base_dir 解析。",
+        "",
+        f'base_dir = "{escape_toml(rel_base)}"',
         "",
         "# 压缩包所在目录。目录路径。",
-        f'archive_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["archive_dir"], SCRIPT_DIR))}"',
+        f'archive_dir = "{escape_toml(rel_archive)}"',
         "",
         "# 世界根目录。目录路径。",
-        f'world_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["world_dir"], SCRIPT_DIR))}"',
+        f'world_dir = "{escape_toml(rel_world)}"',
         "",
         "# 备份目录。目录路径。",
-        f'backup_dir = "{escape_toml(make_relative_dir(BUILTIN_CONFIG["backup_dir"], SCRIPT_DIR))}"',
+        f'backup_dir = "{escape_toml(rel_backup)}"',
         "",
         "# 版本映射文件。文件路径。",
-        f'version_map = "{escape_toml(make_relative_file(BUILTIN_CONFIG["version_map"], SCRIPT_DIR))}"',
+        f'version_map = "{escape_toml(rel_version)}"',
         "",
         "# 每个实例最大备份保留数量。0 表示不限制。",
         "max_backups = 0",
     ]
-    write_toml_atomic(config_path, "\n".join(lines) + "\n")
+    write_toml_atomic(config_path, chr(10).join(lines) + chr(10))
 
 
-def load_config_file(path):
+
+def load_config_file(path, cli_base_dir=None):
     if tomllib is None:
-        raise ScriptError("错误：无法使用 tomllib 。\n原因：需要 Python 3.11 或更高版本。")
+        raise ScriptError("错误：无法使用 tomllib 。原因：需要 Python 3.11 或更高版本。")
     if not os.path.isfile(path):
         raise ScriptError(f"错误：TOML 配置文件不存在：{path}")
     try:
@@ -427,17 +488,35 @@ def load_config_file(path):
     if unknown_keys:
         raise ScriptError(f"错误：TOML 配置中存在未知字段：{', '.join(unknown_keys)}\n文件：{path}")
     for key in ALLOWED_CONFIG_KEYS:
-        if key == "max_backups":
+        if key in ("max_backups", "base_dir"):
             continue
         if key in data and not isinstance(data[key], str):
-            raise ScriptError(f"错误：TOML 配置字段 {key} 必须是字符串。\n文件：{path}")
+            raise ScriptError(f"错误：TOML 配置字段 {key} 必须是字符串。文件：{path}")
+    if "base_dir" in data and not isinstance(data["base_dir"], str):
+        raise ScriptError(f"错误：TOML 配置字段 base_dir 必须是字符串。文件：{path}")
     if "max_backups" in data:
         value = data["max_backups"]
         if not isinstance(value, int) or isinstance(value, bool):
-            raise ScriptError(f"错误：TOML 配置字段 max_backups 必须是整数。\n文件：{path}")
+            raise ScriptError(f"错误：TOML 配置字段 max_backups 必须是整数。文件：{path}")
         if value < 0:
-            raise ScriptError(f"错误：TOML 配置字段 max_backups 不能为负数。\n文件：{path}")
-    return data
+            raise ScriptError(f"错误：TOML 配置字段 max_backups 不能为负数。文件：{path}")
+
+    if cli_base_dir is not None:
+        base_dir = cli_base_dir
+    elif "base_dir" in data:
+        base_dir = resolve_base_dir(data["base_dir"])
+    else:
+        base_dir = DEFAULT_BASE_DIR
+
+    result = {"base_dir": base_dir}
+    for key in ("archive_dir", "world_dir", "backup_dir"):
+        if key in data:
+            result[key] = resolve_path(data[key], "dir", base_dir, key)
+    if "version_map" in data:
+        result["version_map"] = resolve_path(data["version_map"], "file", base_dir, "version_map")
+    if "max_backups" in data:
+        result["max_backups"] = data["max_backups"]
+    return result
 
 
 def load_version_map(path):
@@ -758,8 +837,8 @@ def _on_rm_error(func, path, exc_info):
     try:
         os.chmod(path, stat.S_IWRITE)
         func(path)
-    except Exception:
-        pass
+    except Exception as exc:
+        oprint(f"[WARN] 无法删除: {path} ({exc})")
 
 
 def remove_path(path):
@@ -781,8 +860,8 @@ def clear_directory(path):
             else:
                 try:
                     os.remove(entry.path)
-                except OSError:
-                    pass
+                except OSError as exc:
+                    oprint(f"[WARN] 无法删除文件: {entry.path} ({exc})")
 
 
 def extract_archive(zip_path, target_dir):
@@ -848,6 +927,7 @@ def build_parser():
         description="Thousands Minigames 实例存档导入工具",
     )
     parser.add_argument("--config", "-c", dest="config", metavar="FILE", default=None, help="TOML 配置文件")
+    parser.add_argument("--base-dir", dest="base_dir", metavar="DIR", default=None, help="基准目录（相对 _scripts 解析）")
     parser.add_argument("--create-config", dest="create_config", action="store_true", default=False, help="将默认配置文件写入磁盘后退出")
     parser.add_argument("--instance", "-i", dest="instance", metavar="NAME", default=None, help="目标实例名")
     parser.add_argument("--archive-dir", "-a", dest="archive_dir", metavar="DIR", default=None, help="压缩包所在目录")
@@ -857,6 +937,7 @@ def build_parser():
     parser.add_argument("--overwrite", dest="overwrite", action="store_true", default=False, help="允许备份后覆盖非空目标目录")
     parser.add_argument("--no-input", dest="no_input", action="store_true", default=False, help="强制非交互模式")
     return parser
+
 
 
 def run(argv):
@@ -905,20 +986,16 @@ def run(argv):
                 oprint(f"[INFO] 已将默认配置写入磁盘: \"{target_config}\"")
             return EXIT_SUCCESS, no_input
 
-        builtin = {
-            "archive_dir": resolve_path(BUILTIN_CONFIG["archive_dir"], "dir", None, "builtin archive_dir"),
-            "world_dir": resolve_path(BUILTIN_CONFIG["world_dir"], "dir", None, "builtin world_dir"),
-            "backup_dir": resolve_path(BUILTIN_CONFIG["backup_dir"], "dir", None, "builtin backup_dir"),
-            "version_map": resolve_path(BUILTIN_CONFIG["version_map"], "file", None, "builtin version_map"),
-        }
+        base_dir = resolve_base_dir(args.base_dir)
+        builtin = build_builtin_config(base_dir)
 
         if args.config is not None:
             config_file = resolve_path(args.config, "file", os.getcwd(), "--config")
             if not os.path.exists(config_file):
                 raise ScriptError(
-                    f"错误：TOML 配置文件不存在：{config_file}\n"
-                    "说明：显式指定的配置文件必须存在。\n"
-                    "如果只是想使用默认内置配置，请不要提供 --config 。\n"
+                    f"错误：TOML 配置文件不存在：{config_file}。"
+                    "说明：显式指定的配置文件必须存在。"
+                    "如果只是想使用默认内置配置，请不要提供 --config 。"
                     "如果想将默认配置写入磁盘，请使用 --create-config 。"
                 )
             if not os.path.isfile(config_file):
@@ -933,22 +1010,22 @@ def run(argv):
 
         cfg = {}
         if config_file is not None:
-            cfg = load_config_file(config_file)
-
-        config_dir = SCRIPT_DIR
+            cfg = load_config_file(config_file, None if args.base_dir is None else base_dir)
+            base_dir = cfg.get("base_dir", base_dir)
+            builtin = build_builtin_config(base_dir)
 
         def resolve_dir(cli_value, cfg_key, builtin_value, param_name):
             if cli_value is not None:
                 return resolve_path(cli_value, "dir", os.getcwd(), param_name)
             if cfg_key in cfg:
-                return resolve_path(cfg[cfg_key], "dir", config_dir, cfg_key)
+                return cfg[cfg_key]
             return builtin_value
 
         def resolve_file(cli_value, cfg_key, builtin_value, param_name):
             if cli_value is not None:
                 return resolve_path(cli_value, "file", os.getcwd(), param_name)
             if cfg_key in cfg:
-                return resolve_path(cfg[cfg_key], "file", config_dir, cfg_key)
+                return cfg[cfg_key]
             return builtin_value
 
         archive_dir = resolve_dir(args.archive_dir, "archive_dir", builtin["archive_dir"], "--archive-dir")
@@ -958,7 +1035,7 @@ def run(argv):
         if args.backup_dir is not None:
             backup_dir = resolve_path(args.backup_dir, "dir", os.getcwd(), "--backup-dir")
         elif "backup_dir" in cfg:
-            backup_dir = resolve_path(cfg["backup_dir"], "dir", config_dir, "backup_dir")
+            backup_dir = cfg["backup_dir"]
         else:
             backup_dir = resolve_path(ntpath.join(world_dir, DEFAULT_BACKUP_DIR_NAME), "dir", world_dir, "backup_dir")
 
@@ -969,18 +1046,19 @@ def run(argv):
         ensure_dir_if_exists(world_dir, "世界目录")
         ensure_dir_if_exists(backup_dir, "备份目录")
 
-        archive_no = archive_dir.rstrip("\\")
+        archive_no = archive_dir.rstrip(os.sep)
         if not os.path.isdir(archive_no):
             raise ScriptError(f"错误：压缩包目录不存在或不是目录：{archive_dir}")
 
         version_map_data = load_version_map(version_map)
 
         if interactive_mode:
-            oprint("提示：当前为交互模式。")
-            oprint("提示：也可以使用命令行参数执行，使用 --help 可查看完整参数说明：")
-            oprint(f"      .\\{SCRIPT_NAME} --help")
+            oprint("提示：当前为交互模式（未提供任何命令行参数）。")
+            oprint("提示：也可以使用命令行参数执行；使用 --help 查看完整参数说明：")
+            oprint(f"      .{os.sep}{SCRIPT_NAME} --help")
             oprint("")
             oprint("当前环境配置：")
+            oprint(f"  基准目录: {base_dir}")
             oprint(f"  压缩包目录: {archive_dir}")
             oprint(f"  世界根目录: {world_dir}")
             oprint(f"  备份目录: {backup_dir}")
@@ -992,7 +1070,7 @@ def run(argv):
         if not instance_name:
             if not interactive_mode:
                 raise ScriptError(
-                    "错误：缺少目标实例。\n"
+                    "错误：缺少目标实例。"
                     "请提供 --instance ，或在未提供任何参数时进入交互模式。"
                 )
             instance_name = interactive_select(archive_dir, version_map_data)
@@ -1015,8 +1093,8 @@ def run(argv):
             if not args.overwrite:
                 if not interactive_mode:
                     raise ScriptError(
-                        "错误：目标目录已存在且非空。\n"
-                        f"路径：{target_dir}\n"
+                        "错误：目标目录已存在且非空。"
+                        f"路径：{target_dir}"
                         "非交互模式下必须提供 --overwrite 才允许覆盖。"
                     )
                 if not confirm_dangerous_operation(target_dir):
@@ -1040,12 +1118,15 @@ def run(argv):
         return exc.exit_code, no_input
     except Exception as exc:
         eprint("")
-        eprint(f"错误：发生未预期异常。\n详情：{exc}")
+        eprint(f"错误：发生未预期异常。详情：{exc}")
         eprint("")
         return EXIT_RUNTIME_ERROR, no_input
 
 
+
 def entry():
+    exit_code = EXIT_RUNTIME_ERROR
+    no_input = False
     try:
         exit_code, no_input = run(sys.argv[1:])
     except KeyboardInterrupt:
@@ -1053,8 +1134,16 @@ def entry():
         oprint("已取消操作。")
         oprint("")
         os._exit(0)
+    except SystemExit:
+        raise
+    except BaseException:
+        eprint("")
+        eprint("错误：发生未处理异常。")
+        traceback.print_exc(file=sys.stderr)
+        eprint("")
     pause(no_input)
     sys.exit(exit_code)
+
 
 
 if __name__ == "__main__":

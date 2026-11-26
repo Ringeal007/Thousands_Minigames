@@ -1,18 +1,22 @@
 # Thousands Minigames
 # Instance_Worlds_Importer 配置
-# 相对路径相对于脚本所在目录解析。
+# base_dir 的相对路径相对于脚本所在目录（_scripts）解析。
+# 其余相对路径相对于 base_dir 解析。
 
-# 压缩包所在目录。目录路径。
-archive_dir = "..\\_worlds_archives\\"
+# 基准目录。目录路径。
+base_dir = "..\\"
+
+# 存档压缩包目录。目录路径。
+archive_dir = "_worlds_archives\\"
 
 # 世界根目录。目录路径。
-world_dir = "..\\worlds\\"
+world_dir = "worlds\\"
 
-# 备份目录。目录路径。
-backup_dir = "..\\worlds\\_backups\\"
+# 备份根目录。目录路径。
+backup_dir = "worlds\\_backups\\"
 
 # 版本映射文件。文件路径。
-version_map = ".\\_Configs\\Version_Map.toml"
+version_map = "_scripts\\_Configs\\Version_Map.toml"
 
 # 每个实例最大备份保留数量。0 表示不限制。
 max_backups = 0
