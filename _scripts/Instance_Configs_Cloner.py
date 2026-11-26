@@ -12,6 +12,7 @@ import re
 import argparse
 import shutil
 import stat
+import traceback
 from datetime import datetime
 
 try:
@@ -42,6 +43,8 @@ CONFIG_DIR = os.path.join(SCRIPT_DIR, CONFIG_DIR_NAME) + "\\"
 DEFAULT_CONFIG_PATH = CONFIG_DIR + CONFIG_FILE_NAME
 DEFAULT_VERSION_MAP = CONFIG_DIR + VERSION_MAP_FILE_NAME
 
+DEFAULT_BASE_DIR = BASE_DIR
+
 BUILTIN_CONFIG = {
     "template_root": os.path.join(SCRIPT_DIR, "TM_Example_Configs", "configs") + "\\",
     "configs_root": os.path.join(BASE_DIR, "configs") + "\\",
@@ -71,6 +74,8 @@ TOML_ALLOWED_TOP_KEYS = {
     "template_name",
     "interactive",
     "max_backups",
+    "base_dir",
+    "backup_dir",
 }
 
 TOML_ALLOWED_INTERACTIVE_KEYS = {
@@ -114,6 +119,9 @@ Instance_Configs_Cloner
     支持绝对路径和相对路径。
     若路径末尾带 \ 或 / ，将视为文件夹语义并报错。
 
+  --base-dir
+    基准目录。相对路径按 _scripts 解析；默认仓库根。
+
   --version-map
     版本映射文件。
 
@@ -122,6 +130,9 @@ Instance_Configs_Cloner
 
   --configs-root
     实例配置根目录。
+
+  --backup-dir, -b
+    备份根目录。默认 configs/_backups 。
 
   --worlds-root
     世界根目录，用于交互模式下扫描实例列表。
@@ -155,6 +166,12 @@ Instance_Configs_Cloner
 
   配置优先级：
     CLI > TOML > BUILTIN_CONFIG
+
+路径与优先级：
+  优先级：CLI > TOML > BUILTIN_CONFIG 。
+  命令行路径相对当前工作目录；TOML 路径相对 base_dir 。
+  base_dir 默认是 _scripts 的上一级（仓库根）。
+  目录路径末尾必须带路径分隔符；文件路径末尾不得带路径分隔符。
 
 危险操作确认：
   目标目录已存在且非空时使用 [y/N] 。
@@ -223,7 +240,7 @@ def help_requested(argv):
 
 
 def print_help():
-    oprint(HELP_TEXT.strip())
+    oprint(HELP_TEXT.strip().replace("{脚本所在目录}", SCRIPT_DIR))
     oprint("")
 
 
@@ -245,8 +262,10 @@ def normalize_path(raw, path_type, base_dir=None):
             f"输入：{raw}\n"
             "说明：末尾带 / 或反斜杠的输入必须视为文件夹语义，但该参数要求文件路径。"
         )
-    if path_type not in ("file", "dir"):
+    if path_type not in ("file", "dir", "auto"):
         raise ScriptError(f"错误：内部路径类型不合法：{path_type}")
+    if path_type == "auto":
+        return text
     base = base_dir if base_dir else os.getcwd()
     if not ntpath.isabs(base):
         base = os.path.abspath(base)
@@ -261,6 +280,45 @@ def normalize_path(raw, path_type, base_dir=None):
     else:
         norm = norm.rstrip("\\")
     return norm
+
+
+
+def resolve_base_dir(raw):
+    if raw is None:
+        return DEFAULT_BASE_DIR
+    path = normalize_path(raw, "dir", SCRIPT_DIR)
+    if not os.path.isdir(path.rstrip(os.sep)):
+        raise ScriptError(f"错误：base_dir 目录不存在：{path}")
+    return path
+
+
+def resolve_auto_path(raw, base_dir, param_name):
+    if raw is None:
+        return None
+    text = normalize_path(raw, "auto", base_dir)
+    base = base_dir if base_dir else os.getcwd()
+    if not ntpath.isabs(base):
+        base = os.path.abspath(base)
+    candidate = text if ntpath.isabs(text) else ntpath.join(base, text)
+    if text.endswith(os.sep):
+        kind = "dir"
+    elif os.path.isfile(candidate):
+        kind = "file"
+    else:
+        kind = "dir"
+    return normalize_path(raw, kind, base_dir)
+
+
+
+def build_builtin_config(base_dir=DEFAULT_BASE_DIR):
+    return {
+        "base_dir": base_dir,
+        "template_root": normalize_path(ntpath.join(SCRIPT_DIR, "TM_Example_Configs", "configs"), "dir", SCRIPT_DIR),
+        "configs_root": normalize_path(ntpath.join(base_dir, "configs"), "dir", base_dir),
+        "worlds_root": normalize_path(ntpath.join(base_dir, "worlds"), "dir", base_dir),
+        "version_map": DEFAULT_VERSION_MAP,
+        "backup_dir": normalize_path(ntpath.join(base_dir, "configs", "_backups"), "dir", base_dir),
+    }
 
 
 def load_version_map(path):
@@ -296,15 +354,15 @@ def load_version_map(path):
     return result
 
 
-def validate_instance_name(name):
-    return _validate_name(name, "实例名")
+def validate_instance_name(name, version_map=None):
+    return _validate_name(name, "实例名", version_map)
 
 
-def validate_template_name(name):
-    return _validate_name(name, "模板名")
+def validate_template_name(name, version_map=None):
+    return _validate_name(name, "模板名", version_map)
 
 
-def _validate_name(name, kind):
+def _validate_name(name, kind, version_map=None):
     if not isinstance(name, str):
         raise ScriptError(f"错误：{kind}必须是字符串。")
     value = name.strip()
@@ -323,7 +381,8 @@ def _validate_name(name, kind):
             "合法示例：10808_Bed_Wars、12111_Cool_Parkour、26012_Murder_Mystery"
         )
     code = value[:5]
-    if code not in VERSION_MAP:
+    active_map = version_map if version_map is not None else VERSION_MAP
+    if code not in active_map:
         raise ScriptError(
             f"错误：{kind}版本代码 {code} 不在版本映射表中。\n"
             f"名称：{value}\n"
@@ -471,6 +530,7 @@ def _cleanup_old_backups(backup_root, instance_name, max_backups):
             oprint(f"[WARN] 无法清理过期备份: {name}")
 
 
+
 def create_default_config_atomic(config_path):
     config_path = os.path.abspath(config_path)
     config_dir = os.path.dirname(config_path)
@@ -480,45 +540,54 @@ def create_default_config_atomic(config_path):
         except OSError as exc:
             raise RuntimeScriptError(f"错误：无法创建配置文件目录：{config_dir}\n详情：{exc}")
 
-    template_root_rel = make_relative_dir(BUILTIN_CONFIG["template_root"], SCRIPT_DIR)
-    configs_root_rel = make_relative_dir(BUILTIN_CONFIG["configs_root"], SCRIPT_DIR)
-    worlds_root_rel = make_relative_dir(BUILTIN_CONFIG["worlds_root"], SCRIPT_DIR)
-    version_map_rel = make_relative_file(BUILTIN_CONFIG["version_map"], SCRIPT_DIR)
+    base_rel = ".." + os.sep
+    template_rel = "_scripts" + os.sep + "TM_Example_Configs" + os.sep + "configs" + os.sep
+    configs_rel = "configs" + os.sep
+    worlds_rel = "worlds" + os.sep
+    version_rel = "_scripts" + os.sep + "_Configs" + os.sep + "Version_Map.toml"
+    backup_rel = "configs" + os.sep + "_backups" + os.sep
 
     content = (
-        "# Thousands Minigames\n"
-        "# Instance_Configs_Cloner 配置\n"
-        "# 相对路径相对于脚本所在目录解析。\n"
-        "\n"
-        "# 模板配置根目录。目录路径。\n"
-        f'template_root = "{escape_toml_string(template_root_rel)}"\n'
-        "\n"
-        "# 实例配置根目录。目录路径。\n"
-        f'configs_root = "{escape_toml_string(configs_root_rel)}"\n'
-        "\n"
-        "# 世界根目录。目录路径。\n"
-        f'worlds_root = "{escape_toml_string(worlds_root_rel)}"\n'
-        "\n"
-        "# 版本映射文件。文件路径。\n"
-        f'version_map = "{escape_toml_string(version_map_rel)}"\n'
-        "\n"
-        "# 目标实例名。留空表示未设置。\n"
-        'instance_name = ""\n'
-        "\n"
-        "# 模板名。留空表示未设置。\n"
-        'template_name = ""\n'
-        "\n"
-        "# 每个实例最大备份保留数量。0 表示不限制。\n"
-        "max_backups = 0\n"
-        "\n"
-        "[interactive]\n"
-        "# 是否在交互模式开始时显示当前环境配置。\n"
-        "show_paths = true\n"
+        "# Thousands Minigames" + chr(10)
+        + "# Instance_Configs_Cloner 配置" + chr(10)
+        + "# base_dir 的相对路径相对于脚本所在目录（_scripts）解析。" + chr(10)
+        + "# 其余相对路径相对于 base_dir 解析。" + chr(10)
+        + chr(10)
+        + "# 基准目录。目录路径。" + chr(10)
+        + f'base_dir = "{escape_toml_string(base_rel)}"' + chr(10)
+        + chr(10)
+        + "# 模板配置根目录。目录路径。" + chr(10)
+        + f'template_root = "{escape_toml_string(template_rel)}"' + chr(10)
+        + chr(10)
+        + "# 实例配置根目录。目录路径。" + chr(10)
+        + f'configs_root = "{escape_toml_string(configs_rel)}"' + chr(10)
+        + chr(10)
+        + "# 世界根目录。目录路径。" + chr(10)
+        + f'worlds_root = "{escape_toml_string(worlds_rel)}"' + chr(10)
+        + chr(10)
+        + "# 版本映射文件。文件路径。" + chr(10)
+        + f'version_map = "{escape_toml_string(version_rel)}"' + chr(10)
+        + chr(10)
+        + "# 备份根目录。目录路径。" + chr(10)
+        + f'backup_dir = "{escape_toml_string(backup_rel)}"' + chr(10)
+        + chr(10)
+        + "# 目标实例名。留空表示未设置。" + chr(10)
+        + 'instance_name = ""' + chr(10)
+        + chr(10)
+        + "# 模板名。留空表示未设置。" + chr(10)
+        + 'template_name = ""' + chr(10)
+        + chr(10)
+        + "# 每个实例最大备份保留数量。0 表示不限制。" + chr(10)
+        + "max_backups = 0" + chr(10)
+        + chr(10)
+        + "[interactive]" + chr(10)
+        + "# 是否在交互模式开始时显示当前环境配置。" + chr(10)
+        + "show_paths = true" + chr(10)
     )
 
     temp_path = config_path + ".tmp"
     try:
-        with open(temp_path, "w", encoding="utf-8", newline="\n") as f:
+        with open(temp_path, "w", encoding="utf-8", newline=chr(10)) as f:
             f.write(content)
         if tomllib is not None:
             with open(temp_path, "rb") as f:
@@ -543,9 +612,10 @@ def create_default_config_atomic(config_path):
         raise RuntimeScriptError(f"错误：无法生成或验证默认配置文件：{config_path}\n详情：{exc}")
 
 
-def load_toml_file(path):
+
+def load_toml_file(path, cli_base_dir=None):
     if tomllib is None:
-        raise ScriptError("错误：无法使用 tomllib 。\n原因：需要 Python 3.11 或更高版本。")
+        raise ScriptError("错误：无法使用 tomllib 。原因：需要 Python 3.11 或更高版本。")
     if not os.path.isfile(path):
         raise ScriptError(f"错误：TOML 配置文件不存在：{path}")
     try:
@@ -559,59 +629,62 @@ def load_toml_file(path):
     if unknown_top_keys:
         raise ScriptError(f"错误：TOML 中存在未知顶层字段：{', '.join(unknown_top_keys)}\n文件：{path}")
 
-    base_dir = SCRIPT_DIR
+    if cli_base_dir is not None:
+        base_dir = cli_base_dir
+    elif "base_dir" in data:
+        if not isinstance(data["base_dir"], str):
+            raise ScriptError(f"错误：TOML 字段 base_dir 必须是字符串。文件：{path}")
+        base_dir = resolve_base_dir(data["base_dir"])
+    else:
+        base_dir = DEFAULT_BASE_DIR
 
-    result = {"interactive": {}}
+    result = {"interactive": {}, "base_dir": base_dir}
     for key in ("template_root", "configs_root", "worlds_root"):
         if key in data:
             value = data[key]
             if not isinstance(value, str):
-                raise ScriptError(f"错误：TOML 字段 {key} 必须是字符串目录路径。\n文件：{path}")
+                raise ScriptError(f"错误：TOML 字段 {key} 必须是字符串目录路径。文件：{path}")
             result[key] = normalize_path(value, "dir", base_dir)
+    if "backup_dir" in data:
+        value = data["backup_dir"]
+        if not isinstance(value, str):
+            raise ScriptError(f"错误：TOML 字段 backup_dir 必须是字符串目录路径。文件：{path}")
+        result["backup_dir"] = normalize_path(value, "dir", base_dir)
     if "version_map" in data:
         value = data["version_map"]
         if not isinstance(value, str):
-            raise ScriptError(f"错误：TOML 字段 version_map 必须是字符串文件路径。\n文件：{path}")
+            raise ScriptError(f"错误：TOML 字段 version_map 必须是字符串文件路径。文件：{path}")
         if not value.strip():
-            raise ScriptError(f"错误：TOML 字段 version_map 不能为空。\n文件：{path}")
+            raise ScriptError(f"错误：TOML 字段 version_map 不能为空。文件：{path}")
         result["version_map"] = normalize_path(value, "file", base_dir)
     for key in ("instance_name", "template_name"):
         if key in data:
             value = data[key]
             if not isinstance(value, str):
-                raise ScriptError(f"错误：TOML 字段 {key} 必须是字符串。\n文件：{path}")
+                raise ScriptError(f"错误：TOML 字段 {key} 必须是字符串。文件：{path}")
             result[key] = value.strip()
     if "max_backups" in data:
         value = data["max_backups"]
         if not isinstance(value, int) or isinstance(value, bool):
-            raise ScriptError(f"错误：TOML 字段 max_backups 必须是整数。\n文件：{path}")
+            raise ScriptError(f"错误：TOML 字段 max_backups 必须是整数。文件：{path}")
         if value < 0:
-            raise ScriptError(f"错误：TOML 字段 max_backups 不能为负数。\n文件：{path}")
+            raise ScriptError(f"错误：TOML 字段 max_backups 不能为负数。文件：{path}")
         result["max_backups"] = value
     else:
         result["max_backups"] = 0
     if "interactive" in data:
         inter_data = data["interactive"]
         if not isinstance(inter_data, dict):
-            raise ScriptError(f"错误：TOML 中的 [interactive] 必须是键值表。\n文件：{path}")
+            raise ScriptError(f"错误：TOML 中的 [interactive] 必须是键值表。文件：{path}")
         unknown_inter_keys = sorted(set(inter_data.keys()) - TOML_ALLOWED_INTERACTIVE_KEYS)
         if unknown_inter_keys:
             raise ScriptError(f"错误：TOML [interactive] 中存在未知字段：{', '.join(unknown_inter_keys)}\n文件：{path}")
         if "show_paths" in inter_data:
             value = inter_data["show_paths"]
             if not isinstance(value, bool):
-                raise ScriptError(f"错误：TOML [interactive] 字段 show_paths 必须是布尔值 true 或 false 。\n文件：{path}")
+                raise ScriptError(f"错误：TOML [interactive] 字段 show_paths 必须是布尔值 true 或 false 。文件：{path}")
             result["interactive"]["show_paths"] = value
     return result, set(data.keys())
-
-
-def build_builtin_config():
-    return {
-        "template_root": normalize_path(BUILTIN_CONFIG["template_root"], "dir", SCRIPT_DIR),
-        "configs_root": normalize_path(BUILTIN_CONFIG["configs_root"], "dir", SCRIPT_DIR),
-        "worlds_root": normalize_path(BUILTIN_CONFIG["worlds_root"], "dir", SCRIPT_DIR),
-        "version_map": normalize_path(BUILTIN_CONFIG["version_map"], "file", SCRIPT_DIR),
-    }
 
 
 def build_parser():
@@ -621,11 +694,13 @@ def build_parser():
         description="Thousands Minigames 实例配置复制工具",
     )
     parser.add_argument("--config", "-c", dest="config", metavar="FILE", default=None, help="TOML 配置文件")
+    parser.add_argument("--base-dir", dest="base_dir", metavar="DIR", default=None, help="基准目录（相对 _scripts 解析）")
     parser.add_argument("--create-config", dest="create_config", action="store_true", default=False, help="将默认配置文件写入磁盘后退出")
     parser.add_argument("--version-map", dest="version_map", metavar="FILE", default=None, help="版本映射文件")
     parser.add_argument("--template-root", "-T", dest="template_root", metavar="DIR", default=None, help="模板配置根目录")
     parser.add_argument("--configs-root", dest="configs_root", metavar="DIR", default=None, help="实例配置根目录")
     parser.add_argument("--worlds-root", dest="worlds_root", metavar="DIR", default=None, help="世界根目录")
+    parser.add_argument("--backup-dir", "-b", dest="backup_dir", metavar="DIR", default=None, help="备份根目录")
     parser.add_argument("--instance", "-i", dest="instance", metavar="NAME", default=None, help="目标实例名")
     parser.add_argument("--template", "-t", dest="template", metavar="NAME", default=None, help="模板名")
     parser.add_argument("--source", "-s", dest="source", metavar="DIR", default=None, help="直接指定源目录")
@@ -635,7 +710,8 @@ def build_parser():
     return parser
 
 
-def confirm(prompt, default_yes=False):
+
+def confirm(prompt, default_yes=False, retry_invalid=True):
     while True:
         try:
             answer = input(prompt).strip().lower()
@@ -646,6 +722,8 @@ def confirm(prompt, default_yes=False):
         if answer in ("y", "yes"):
             return True
         if answer in ("n", "no"):
+            return False
+        if not retry_invalid:
             return False
         oprint("无效输入。请输入 y / yes 或 n / no 。")
         oprint("")
@@ -746,19 +824,20 @@ def inspect_target(target_dir):
     return True, nonempty
 
 
+
 def authorize_nonempty_target(target_dir, overwrite, no_input, interactive_mode):
     if overwrite:
         return
     if no_input:
         raise ScriptError(
-            "错误：目标目录已存在且非空。\n"
-            f"路径：{target_dir}\n"
+            "错误：目标目录已存在且非空。"
+            f"路径：{target_dir}"
             "非交互模式下必须提供 --overwrite 才允许覆盖。"
         )
     if not interactive_mode:
         raise ScriptError(
-            "错误：目标目录已存在且非空。\n"
-            f"路径：{target_dir}\n"
+            "错误：目标目录已存在且非空。"
+            f"路径：{target_dir}"
             "如需覆盖，请使用 --overwrite 。"
         )
     oprint("")
@@ -766,7 +845,7 @@ def authorize_nonempty_target(target_dir, overwrite, no_input, interactive_mode)
     oprint(target_dir)
     oprint("")
     oprint("即将备份后覆盖该目录。")
-    if not confirm("是否继续？[y/N] ", False):
+    if not confirm("是否继续？[y/N] ", False, retry_invalid=False):
         raise UserCancel()
 
 
@@ -850,8 +929,8 @@ def _on_rm_error(func, path, exc_info):
     try:
         os.chmod(path, stat.S_IWRITE)
         func(path)
-    except Exception:
-        pass
+    except Exception as exc:
+        oprint(f"[WARN] 无法删除: {path} ({exc})")
 
 
 def remove_path(path):
@@ -897,17 +976,18 @@ def copy_contents(source_dir, target_dir):
             raise RuntimeScriptError(f"错误：复制失败。\n源：{src}\n目标：{dst}\n详情：{exc}")
 
 
-def create_backup(target_dir, instance_name, configs_root, source_dir, template_root, template_name):
-    backup_root = normalize_path(ntpath.join(configs_root, "backups"), "dir", configs_root)
+
+def create_backup(target_dir, instance_name, backup_dir, source_dir, template_root, template_name):
+    backup_root = normalize_path(backup_dir, "dir", backup_dir)
     if is_within(backup_root, source_dir):
-        raise RuntimeScriptError(f"错误：备份目录不得位于源目录内部。\n备份根目录：{backup_root}")
+        raise RuntimeScriptError(f"错误：备份目录不得位于源目录内部。备份根目录：{backup_root}")
     if is_within(backup_root, target_dir):
-        raise RuntimeScriptError(f"错误：备份目录不得位于目标目录内部。\n备份根目录：{backup_root}")
+        raise RuntimeScriptError(f"错误：备份目录不得位于目标目录内部。备份根目录：{backup_root}")
     if template_root and is_within(backup_root, template_root):
-        raise RuntimeScriptError(f"错误：备份目录不得位于模板根目录内部。\n备份根目录：{backup_root}")
+        raise RuntimeScriptError(f"错误：备份目录不得位于模板根目录内部。备份根目录：{backup_root}")
 
     try:
-        os.makedirs(backup_root.rstrip("\\"), exist_ok=True)
+        os.makedirs(backup_root.rstrip(os.sep), exist_ok=True)
     except OSError as exc:
         raise RuntimeScriptError(f"错误：无法创建备份根目录：{backup_root}\n详情：{exc}")
 
@@ -915,26 +995,26 @@ def create_backup(target_dir, instance_name, configs_root, source_dir, template_
     base_name = f"{instance_name}.bak.{timestamp}"
     candidate_name = base_name
     counter = 1
-    while os.path.exists(ntpath.join(backup_root.rstrip("\\"), candidate_name)):
+    while os.path.exists(ntpath.join(backup_root.rstrip(os.sep), candidate_name)):
         candidate_name = f"{base_name}-{counter:03d}"
         counter += 1
 
     backup_path = normalize_path(ntpath.join(backup_root, candidate_name), "dir", backup_root)
 
     if same_path(backup_path, target_dir):
-        raise RuntimeScriptError(f"错误：备份目录与目标目录相同。\n备份目录：{backup_path}\n目标目录：{target_dir}")
+        raise RuntimeScriptError(f"错误：备份目录与目标目录相同。备份目录：{backup_path}\n目标目录：{target_dir}")
     if is_within(backup_path, target_dir):
-        raise RuntimeScriptError(f"错误：备份目录不得位于目标目录内部。\n备份目录：{backup_path}\n目标目录：{target_dir}")
+        raise RuntimeScriptError(f"错误：备份目录不得位于目标目录内部。备份目录：{backup_path}")
     if is_within(target_dir, backup_path):
-        raise RuntimeScriptError(f"错误：目标目录不得位于备份目录内部。\n备份目录：{backup_path}\n目标目录：{target_dir}")
+        raise RuntimeScriptError(f"错误：目标目录不得位于备份目录内部。备份目录：{backup_path}")
     if is_within(backup_path, source_dir):
-        raise RuntimeScriptError(f"错误：备份目录不得位于源目录内部。\n备份目录：{backup_path}")
+        raise RuntimeScriptError(f"错误：备份目录不得位于源目录内部。备份目录：{backup_path}")
     if template_root and is_within(backup_path, template_root):
-        raise RuntimeScriptError(f"错误：备份目录不得位于模板根目录内部。\n备份目录：{backup_path}")
+        raise RuntimeScriptError(f"错误：备份目录不得位于模板根目录内部。备份目录：{backup_path}")
 
-    if os.path.exists(backup_path.rstrip("\\")):
+    if os.path.exists(backup_path.rstrip(os.sep)):
         counter = 1
-        while os.path.exists(backup_path.rstrip("\\")):
+        while os.path.exists(backup_path.rstrip(os.sep)):
             candidate_name = f"{base_name}-{counter:03d}"
             counter += 1
             backup_path = normalize_path(ntpath.join(backup_root, candidate_name), "dir", backup_root)
@@ -944,9 +1024,9 @@ def create_backup(target_dir, instance_name, configs_root, source_dir, template_
     oprint("")
 
     try:
-        shutil.move(target_dir.rstrip("\\"), backup_path.rstrip("\\"))
+        shutil.move(target_dir.rstrip(os.sep), backup_path.rstrip(os.sep))
     except Exception as exc:
-        raise RuntimeScriptError(f"错误：备份目标目录失败。\n目标目录：{target_dir}\n备份目录：{backup_path}\n详情：{exc}")
+        raise RuntimeScriptError(f"错误：备份目标目录失败。目标目录：{target_dir}\n备份目录：{backup_path}\n详情：{exc}")
 
     _write_backup_info(backup_path, instance_name, source_dir, target_dir, template_name)
 
@@ -957,29 +1037,30 @@ def create_backup(target_dir, instance_name, configs_root, source_dir, template_
     return backup_path
 
 
-def perform_copy(source_dir, target_dir, instance_name, target_existed, target_nonempty, configs_root, template_root, template_name, max_backups):
+
+def perform_copy(source_dir, target_dir, instance_name, target_existed, target_nonempty, backup_dir, template_root, template_name, max_backups):
     backup_path = None
     try:
         if target_existed and target_nonempty:
-            backup_path = create_backup(target_dir, instance_name, configs_root, source_dir, template_root, template_name)
+            backup_path = create_backup(target_dir, instance_name, backup_dir, source_dir, template_root, template_name)
         copy_contents(source_dir, target_dir)
     except Exception as exc:
         if backup_path is not None:
             try:
-                if os.path.exists(target_dir.rstrip("\\")):
+                if os.path.exists(target_dir.rstrip(os.sep)):
                     remove_path(target_dir)
             except Exception:
-                raise RuntimeScriptError(f"错误：复制失败后清理未完成目标目录失败。\n备份保留：{backup_path}")
+                raise RuntimeScriptError(f"错误：复制失败后清理未完成目标目录失败。备份保留：{backup_path}")
             try:
-                shutil.move(backup_path.rstrip("\\"), target_dir.rstrip("\\"))
+                shutil.move(backup_path.rstrip(os.sep), target_dir.rstrip(os.sep))
             except Exception:
-                raise RuntimeScriptError(f"错误：复制失败且恢复备份失败。\n备份保留：{backup_path}")
-            if not os.path.isdir(target_dir.rstrip("\\")):
-                raise RuntimeScriptError(f"错误：恢复备份后目标目录不存在。\n备份保留：{backup_path}")
-            raise RuntimeScriptError(f"错误：复制失败，已恢复原目标目录。\n原错误：{exc}")
+                raise RuntimeScriptError(f"错误：复制失败且恢复备份失败。备份保留：{backup_path}")
+            if not os.path.isdir(target_dir.rstrip(os.sep)):
+                raise RuntimeScriptError(f"错误：恢复备份后目标目录不存在。备份保留：{backup_path}")
+            raise RuntimeScriptError(f"错误：复制失败，已恢复原目标目录。原错误：{exc}")
         try:
             if not target_existed:
-                if os.path.exists(target_dir.rstrip("\\")):
+                if os.path.exists(target_dir.rstrip(os.sep)):
                     remove_path(target_dir)
             else:
                 if not target_nonempty:
@@ -988,7 +1069,7 @@ def perform_copy(source_dir, target_dir, instance_name, target_existed, target_n
             pass
         if isinstance(exc, ScriptError):
             raise
-        raise RuntimeScriptError(f"错误：复制失败。\n详情：{exc}")
+        raise RuntimeScriptError(f"错误：复制失败。详情：{exc}")
 
     oprint("")
     oprint("[INFO] 复制完成。")
@@ -999,8 +1080,8 @@ def perform_copy(source_dir, target_dir, instance_name, target_existed, target_n
     oprint("")
 
     if backup_path is not None and max_backups > 0:
-        backup_root = normalize_path(ntpath.join(configs_root, "backups"), "dir", configs_root)
-        _cleanup_old_backups(backup_root, instance_name, max_backups)
+        _cleanup_old_backups(backup_dir, instance_name, max_backups)
+
 
 
 def run(argv):
@@ -1054,15 +1135,16 @@ def run(argv):
         if args.target is not None and (args.configs_root is not None or args.instance is not None):
             raise ScriptError("参数冲突：使用 --target 时，禁止同时使用 --configs-root 和 --instance 。")
 
-        builtin = build_builtin_config()
+        base_dir = resolve_base_dir(args.base_dir)
+        builtin = build_builtin_config(base_dir)
 
         if args.config is not None:
             config_file = normalize_path(args.config, "file", os.getcwd())
             if not os.path.exists(config_file):
                 raise ScriptError(
-                    f"错误：TOML 配置文件不存在：{config_file}\n"
-                    "说明：显式指定的配置文件必须存在。\n"
-                    "如果只是想使用默认内置配置，请不要提供 --config 。\n"
+                    f"错误：TOML 配置文件不存在：{config_file}。"
+                    "说明：显式指定的配置文件必须存在。"
+                    "如果只是想使用默认内置配置，请不要提供 --config 。"
                     "如果想将默认配置写入磁盘，请使用 --create-config 。"
                 )
             if not os.path.isfile(config_file):
@@ -1077,7 +1159,9 @@ def run(argv):
 
         toml_config = {}
         if config_file is not None:
-            toml_config, _ = load_toml_file(config_file)
+            toml_config, _ = load_toml_file(config_file, None if args.base_dir is None else base_dir)
+            base_dir = toml_config.get("base_dir", base_dir)
+            builtin = build_builtin_config(base_dir)
 
         if args.version_map is not None:
             version_map_path = normalize_path(args.version_map, "file", os.getcwd())
@@ -1094,28 +1178,31 @@ def run(argv):
         top_instance_raw = toml_config.get("instance_name", "")
         top_template_raw = toml_config.get("template_name", "")
         if top_instance_raw:
-            validate_instance_name(top_instance_raw)
+            validate_instance_name(top_instance_raw, VERSION_MAP)
         if top_template_raw:
-            validate_template_name(top_template_raw)
+            validate_template_name(top_template_raw, VERSION_MAP)
 
         interactive_config = toml_config.get("interactive", {})
 
-        if args.template_root is not None:
-            template_root = normalize_path(args.template_root, "dir", os.getcwd())
-        else:
-            template_root = toml_config.get("template_root", builtin["template_root"])
+        def resolve_dir(cli_value, cfg_key, builtin_value):
+            if cli_value is not None:
+                return normalize_path(cli_value, "dir", os.getcwd())
+            if cfg_key in toml_config:
+                return toml_config[cfg_key]
+            return builtin_value
 
-        if args.configs_root is not None:
-            configs_root = normalize_path(args.configs_root, "dir", os.getcwd())
-        else:
-            configs_root = toml_config.get("configs_root", builtin["configs_root"])
+        template_root = resolve_dir(args.template_root, "template_root", builtin["template_root"])
+        configs_root = resolve_dir(args.configs_root, "configs_root", builtin["configs_root"])
+        worlds_root = resolve_dir(args.worlds_root, "worlds_root", builtin["worlds_root"])
 
-        if args.worlds_root is not None:
-            worlds_root = normalize_path(args.worlds_root, "dir", os.getcwd())
+        if args.backup_dir is not None:
+            backup_dir = normalize_path(args.backup_dir, "dir", os.getcwd())
+        elif toml_config.get("backup_dir"):
+            backup_dir = toml_config["backup_dir"]
         else:
-            worlds_root = toml_config.get("worlds_root", builtin["worlds_root"])
+            backup_dir = normalize_path(ntpath.join(configs_root, "_backups"), "dir", configs_root)
 
-        worlds_root_no = worlds_root.rstrip("\\")
+        worlds_root_no = worlds_root.rstrip(os.sep)
         if os.path.exists(worlds_root_no) and not os.path.isdir(worlds_root_no):
             raise ScriptError(f"错误：世界根目录存在但不是目录：{worlds_root}")
 
@@ -1124,7 +1211,7 @@ def run(argv):
             instance_name = args.instance.strip()
             if not instance_name:
                 raise ScriptError("错误：--instance 不能为空。")
-            validate_instance_name(instance_name)
+            validate_instance_name(instance_name, VERSION_MAP)
         elif top_instance_raw:
             instance_name = top_instance_raw
 
@@ -1133,7 +1220,7 @@ def run(argv):
             template_name = args.template.strip()
             if not template_name:
                 raise ScriptError("错误：--template 不能为空。")
-            validate_template_name(template_name)
+            validate_template_name(template_name, VERSION_MAP)
         elif top_template_raw:
             template_name = top_template_raw
 
@@ -1146,15 +1233,17 @@ def run(argv):
             target_dir = normalize_path(args.target, "dir", os.getcwd())
 
         if interactive_mode:
-            oprint("提示：当前为交互模式。")
-            oprint("提示：也可以使用命令行参数执行，使用 --help 可查看完整参数说明：")
-            oprint(f"      .\\{SCRIPT_NAME} --help")
+            oprint("提示：当前为交互模式（未提供任何命令行参数）。")
+            oprint("提示：也可以使用命令行参数执行；使用 --help 查看完整参数说明：")
+            oprint(f"      .{os.sep}{SCRIPT_NAME} --help")
             oprint("")
             if interactive_config.get("show_paths", True):
                 oprint("当前环境配置：")
+                oprint(f"  基准目录: {base_dir}")
                 oprint(f"  模板根目录: {template_root}")
                 oprint(f"  实例根目录: {configs_root}")
                 oprint(f"  世界根目录: {worlds_root}")
+                oprint(f"  备份目录: {backup_dir}")
                 oprint(f"  版本映射: {version_map_path}")
                 oprint("")
             if instance_name:
@@ -1164,12 +1253,10 @@ def run(argv):
                 while True:
                     chosen_instance = interactive_select_instance(worlds_root)
                     if template_name and chosen_instance[:5] != template_name[:5]:
-                        oprint(
-                            "错误：输入的实例版本代码与配置中的模板版本代码不一致。\n"
-                            f"实例：{chosen_instance}\n"
-                            f"模板：{template_name}\n"
-                            "请重新选择实例。"
-                        )
+                        oprint("错误：输入的实例版本代码与配置中的模板版本代码不一致。")
+                        oprint(f"实例：{chosen_instance}")
+                        oprint(f"模板：{template_name}")
+                        oprint("请重新选择实例。")
                         oprint("")
                         continue
                     instance_name = chosen_instance
@@ -1211,7 +1298,7 @@ def run(argv):
             if target_existed and target_nonempty:
                 authorize_nonempty_target(target_dir, args.overwrite, no_input, interactive_mode)
 
-        perform_copy(source_dir, target_dir, final_instance, target_existed, target_nonempty, configs_root, template_root, final_template, max_backups)
+        perform_copy(source_dir, target_dir, final_instance, target_existed, target_nonempty, backup_dir, template_root, final_template, max_backups)
         return EXIT_SUCCESS, no_input
 
     except UserCancel as exc:
@@ -1224,12 +1311,15 @@ def run(argv):
         return exc.exit_code, no_input
     except Exception as exc:
         eprint("")
-        eprint(f"错误：发生未预期异常。\n详情：{exc}")
+        eprint(f"错误：发生未预期异常。详情：{exc}")
         eprint("")
         return EXIT_RUNTIME_ERROR, no_input
 
 
+
 def entry():
+    exit_code = EXIT_RUNTIME_ERROR
+    no_input = False
     try:
         exit_code, no_input = run(sys.argv[1:])
     except KeyboardInterrupt:
@@ -1237,6 +1327,13 @@ def entry():
         oprint("已取消操作。")
         oprint("")
         os._exit(0)
+    except SystemExit:
+        raise
+    except BaseException:
+        eprint("")
+        eprint("错误：发生未处理异常。")
+        traceback.print_exc(file=sys.stderr)
+        eprint("")
     pause(no_input)
     sys.exit(exit_code)
 
